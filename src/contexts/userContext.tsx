@@ -14,7 +14,7 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>({ name: "Admin" });
-  const [isAuthed, setIsAuthed] = useState(true);
+  const [isAuthed, setIsAuthed] = useState(false);
 
   const login = (name: string) => {
     // Any data entered is valid; logic handling left blank per spec.

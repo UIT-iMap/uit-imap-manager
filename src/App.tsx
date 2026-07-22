@@ -34,8 +34,8 @@ function Workspace() {
 }
 
 function Gate() {
-  // const { isAuthed } = useUser();
-  // if (!isAuthed) return <Login />;
+  const { isAuthed } = useUser();
+  if (!isAuthed) return <Login />;
   return (
     <LogProvider>
       <DataProvider>
