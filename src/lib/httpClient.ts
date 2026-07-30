@@ -22,5 +22,4 @@ export const ENDPOINTS = {
   tourScenes: "tour-scenes.json",
   tourspots: "tourspots.json",
   transport: "transport.json",
-  log: "log.json",
 } as const;

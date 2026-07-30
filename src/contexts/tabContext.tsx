@@ -8,7 +8,6 @@ import {
   Compass,
   Image,
   Bus,
-  History,
   Package,
   LayoutGrid,
 } from "lucide-react";
@@ -26,9 +25,8 @@ export const TABS: TabDef[] = [
   { id: "edges", label: "Edges", icon: Waypoints },
   { id: "rooms", label: "Rooms", icon: DoorOpen },
   { id: "tourspots", label: "Tourspots", icon: Compass },
-  { id: "tourScenes", label: "Scenes", icon: Image },
+  { id: "tourScenes", label: "Scenes Preview", icon: Image },
   { id: "transport", label: "Transport", icon: Bus },
-  { id: "log", label: "Logs", icon: History },
 ];
 
 interface TabContextValue {

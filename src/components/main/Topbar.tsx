@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Upload, Download, Save, FolderArchive, X } from "lucide-react";
 import Button from "../ui/Button";
 import NewRowDialog from "../ui/NewRowDialog";
@@ -7,17 +7,30 @@ import UploadZipDialog, { downloadTilesArchive } from "../ui/UploadZipDialog";
 import UploadPreviewDialog from "../ui/UploadPreviewDialog";
 import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
-import { useLog } from "../../contexts/logContext";
 import { useModel } from "../../contexts/modelContext";
 import { useFloor } from "../../contexts/floorContext";
+import { usePano } from "../../contexts/panoContext";
 import { downloadJson } from "../../lib/utils/jsons";
+import {
+  processPanoramaFile,
+  type ProcessProgress,
+} from "../../lib/utils/panoProcessor";
 import type { UploadPreviewRow, DataId } from "../../lib/types";
 import type JSZip from "jszip";
 
 export default function Topbar() {
   const { tab } = useTab();
   const data = useData();
-  const { markAllSaved } = useLog();
+  const {
+    currentSceneId,
+    currentScene,
+    setScene,
+    isAddingLinkSpot,
+    startAddingLinkSpot,
+    cancelAddingLinkSpot,
+    relocatingIndex,
+    cancelRelocating,
+  } = usePano();
   const {
     pickMode,
     edgeFirstId,
@@ -41,6 +54,133 @@ export default function Topbar() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [tourspotDropdownOpen, setTourspotDropdownOpen] = useState(false);
 
+  // Panorama processing states & refs
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
+  const uploadFileInputRef = useRef<HTMLInputElement>(null);
+  const [processingProgress, setProcessingProgress] =
+    useState<ProcessProgress | null>(null);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleUpdatePanoramaClick = () => {
+    if (!currentSceneId) {
+      alert("Please select a current panorama scene to update.");
+      return;
+    }
+    updateFileInputRef.current?.click();
+  };
+
+  const handleUpdatePanoramaFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    e.target.value = "";
+
+    setIsProcessing(true);
+    setProcessingError(null);
+
+    try {
+      const result = await processPanoramaFile(file, {
+        existingSceneId: currentSceneId,
+        existingSceneName: currentScene?.name,
+        onProgress: setProcessingProgress,
+      });
+
+      const tourScenesSlice = data.tourScenes;
+      const idx = tourScenesSlice.data.findIndex(
+        (s: any) => s.id === currentSceneId,
+      );
+
+      if (idx !== -1) {
+        tourScenesSlice.editRowFields?.(idx, {
+          levels: result.scene.levels,
+          faceSize: result.scene.faceSize,
+        });
+      } else {
+        tourScenesSlice.addRow?.(result.scene);
+      }
+
+      await downloadTilesArchive(result.tilesZip);
+      setScene(currentSceneId);
+    } catch (err: any) {
+      console.error("Error updating panorama:", err);
+      setProcessingError(
+        err.message || "An error occurred while processing the panorama image.",
+      );
+    } finally {
+      setIsProcessing(false);
+      setTimeout(() => {
+        setProcessingProgress(null);
+      }, 1200);
+    }
+  };
+
+  const handleUploadPanoramaClick = () => {
+    uploadFileInputRef.current?.click();
+  };
+
+  const handleUploadPanoramaFilesChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files);
+    e.target.value = "";
+
+    setIsProcessing(true);
+    setProcessingError(null);
+
+    const tourScenesSlice = data.tourScenes;
+    let lastProcessedSceneId = "";
+
+    try {
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        setProcessingProgress({
+          fileName: file.name,
+          currentStep: `Preparing image (${i + 1}/${fileArray.length})...`,
+          processedTiles: 0,
+          totalTiles: 0,
+          percent: 0,
+        });
+
+        const result = await processPanoramaFile(file, {
+          onProgress: setProcessingProgress,
+        });
+
+        lastProcessedSceneId = result.scene.id;
+
+        const existingIdx = tourScenesSlice.data.findIndex(
+          (s: any) => s.id === result.scene.id,
+        );
+
+        if (existingIdx !== -1) {
+          tourScenesSlice.editRowFields?.(existingIdx, result.scene);
+        } else {
+          tourScenesSlice.addRow?.(result.scene);
+        }
+
+        await downloadTilesArchive(result.tilesZip);
+      }
+
+      if (lastProcessedSceneId) {
+        setScene(lastProcessedSceneId);
+      }
+    } catch (err: any) {
+      console.error("Error uploading panorama:", err);
+      setProcessingError(
+        err.message || "An error occurred while processing the panorama image.",
+      );
+    } finally {
+      setIsProcessing(false);
+      setTimeout(() => {
+        setProcessingProgress(null);
+      }, 1200);
+    }
+  };
+
   useEffect(() => {
     if (!tourspotDropdownOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -56,11 +196,9 @@ export default function Topbar() {
   }, [tourspotDropdownOpen]);
 
   const isModel = tab === "model";
-  const isLog = tab === "log";
   const isScenes = tab === "tourScenes";
   const isFloorPreview = tab === "floorPreview";
-  const slice =
-    !isLog && !isModel && !isFloorPreview ? data[tab as DataId] : null;
+  const slice = !isModel && !isFloorPreview ? data[tab as DataId] : null;
 
   const hotspotIds = data.hotspots.data.map((h: any) => h.id);
   const roomBelongsToIds = data.rooms.data
@@ -103,13 +241,12 @@ export default function Topbar() {
         (row: any) => String(row[slice.rowIdKey]) === String(r.id),
       );
       if (idx >= 0) {
-        // overwrite: remove then re-add so the change is captured in the log
         slice.removeRow?.(idx);
       }
       slice.addRow?.(r.raw);
     }
     if (pendingTilesZip) {
-      downloadTilesArchive(pendingTilesZip);
+      // downloadTilesArchive(pendingTilesZip);
       setPendingTilesZip(null);
     }
   };
@@ -153,7 +290,6 @@ export default function Topbar() {
   };
 
   const handleSave = () => {
-    markAllSaved();
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1200);
   };
@@ -212,13 +348,128 @@ export default function Topbar() {
     );
   }
 
-  if (isLog) {
+  if (isScenes) {
     return (
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">Change Logs</h2>
-        <span className="text-xs text-slate-400">
-          Select "Recover" on a row to undo that change.
-        </span>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-2 pt-2 border-b border-slate-200 pb-2">
+        <input
+          ref={updateFileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleUpdatePanoramaFileChange}
+        />
+        <input
+          ref={uploadFileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleUploadPanoramaFilesChange}
+        />
+
+        <h2 className="text-lg font-semibold text-slate-800">Scenes Preview</h2>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={isAddingLinkSpot ? "primary" : "secondary"}
+            icon={isAddingLinkSpot ? <X size={14} /> : <Plus size={14} />}
+            onClick={() => {
+              if (isAddingLinkSpot) cancelAddingLinkSpot();
+              else startAddingLinkSpot();
+            }}
+          >
+            {isAddingLinkSpot ? "Click on panorama…" : "Add linking spot"}
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<Upload size={14} />}
+            disabled={isProcessing}
+            onClick={handleUpdatePanoramaClick}
+          >
+            Update panorama
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<Upload size={14} />}
+            disabled={isProcessing}
+            onClick={handleUploadPanoramaClick}
+          >
+            Upload panorama
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<Download size={14} />}
+            onClick={handleDownload}
+          >
+            Download JSON
+          </Button>
+          {(isAddingLinkSpot || relocatingIndex !== null) && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                cancelAddingLinkSpot();
+                cancelRelocating();
+              }}
+              icon={<X size={14} />}
+              className="text-red-400!"
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+
+        {/* Progress & Error Modal */}
+        {(isProcessing || processingProgress || processingError) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+              <h3 className="text-base font-bold text-slate-800 mb-3">
+                {processingError
+                  ? "Panorama Processing Error"
+                  : "Slicing Panorama Tiles..."}
+              </h3>
+
+              {processingProgress && !processingError && (
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                    <span className="truncate max-w-[240px] font-semibold text-sky-700">
+                      {processingProgress.fileName}
+                    </span>
+                    <span>{processingProgress.percent}%</span>
+                  </div>
+
+                  <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full bg-sky-500 transition-all duration-200 rounded-full"
+                      style={{ width: `${processingProgress.percent}%` }}
+                    />
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    {processingProgress.currentStep}
+                  </p>
+                </div>
+              )}
+
+              {processingError && (
+                <div className="space-y-4">
+                  <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-100">
+                    {processingError}
+                  </p>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setProcessingError(null);
+                        setProcessingProgress(null);
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

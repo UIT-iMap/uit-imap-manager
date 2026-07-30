@@ -8,22 +8,10 @@ export type DataId =
   | "tourspots"
   | "transport";
 
-export type TabId = DataId | "log" | "model" | "floorPreview";
+export type TabId = DataId | "model" | "floorPreview";
 
 export interface User {
   name: string;
-}
-
-export interface Log {
-  id: string;
-  source: DataId;
-  attribute: string;
-  rowId: string | number;
-  oldValue: any; // null --> new row log
-  newValue: any; // null --> deleted row log
-  timestamp: string;
-  by: string;
-  isSaved: boolean;
 }
 
 export type Edge = {
@@ -129,6 +117,13 @@ export interface TourScene {
   linkHotspots: LinkHotspot[];
   infoHotspots: InfoHotspot[];
 }
+
+export interface MarzipanoScene {
+  data: TourScene;
+  scene: any;
+  view: any;
+}
+
 
 export interface Tourspot {
   id: string;

@@ -11,14 +11,12 @@ import {
 import {
   Search,
   Trash2,
-  RotateCcw,
   ChevronsUpDown,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
-import { useLog } from "../../contexts/logContext";
 import { useUser } from "../../contexts/userContext";
 import type { TableRule, DataId } from "../../lib/types";
 import EditCellDialog from "../ui/EditCellDialog";
@@ -34,7 +32,6 @@ function formatCellValue(value: any): string {
 export default function Table() {
   const { tab } = useTab();
   const data = useData();
-  const { log, recoverTo } = useLog();
   const { user } = useUser();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -43,27 +40,14 @@ export default function Table() {
     rowIdx: number;
   } | null>(null);
 
-  const isLog = tab === "log";
-  const isDataTab = tab !== "model" && tab !== "floorPreview" && tab !== "log";
+  const isDataTab = tab !== "model" && tab !== "floorPreview";
   const slice = isDataTab ? data[tab as DataId] : null;
 
   const rules: TableRule[] = useMemo(() => {
-    if (tab === "log") {
-      return [
-        { name: "source", label: "Source", isMandatory: true },
-        { name: "attribute", label: "Attribute", isMandatory: true },
-        { name: "rowId", label: "Row ID", isMandatory: true },
-        { name: "oldValue", label: "Old Value", isMandatory: false },
-        { name: "newValue", label: "New Value", isMandatory: false },
-        { name: "timestamp", label: "Timestamp", isMandatory: true },
-        { name: "by", label: "By", isMandatory: true },
-        { name: "isSaved", label: "Saved", isMandatory: false },
-      ];
-    }
     return (slice?.tableRules ?? []).filter((r: TableRule) => r.isShow !== false);
-  }, [tab, slice]);
+  }, [slice]);
 
-  const rows: any[] = isLog ? log : (slice?.data ?? []);
+  const rows: any[] = slice?.data ?? [];
 
   const columnHelper = createColumnHelper<any>();
   const columns = useMemo(() => {
@@ -114,10 +98,6 @@ export default function Table() {
   const handleRemove = (rowIdx: number) => {
     if (!slice?.removeRow) return;
     if (confirm("Remove this row?")) slice.removeRow(rowIdx);
-  };
-
-  const handleRecover = (id: string) => {
-    recoverTo(id);
   };
 
   return (
@@ -185,7 +165,7 @@ export default function Table() {
                 >
                   {row.getVisibleCells().map((cell) => {
                     const rule = rules.find((r) => r.name === cell.column.id);
-                    const isEditable = !isLog && rule?.editable !== false;
+                    const isEditable = rule?.editable !== false;
                     return (
                       <td
                         key={cell.id}
@@ -208,21 +188,12 @@ export default function Table() {
                     );
                   })}
                   <td className="px-3 py-2">
-                    {isLog ? (
-                      <button
-                        onClick={() => handleRecover(row.original.id)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-sky-600 transition-all hover:bg-sky-50 hover:scale-95 active:scale-90"
-                      >
-                        <RotateCcw size={13} /> Recover
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleRemove(originalIdx)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 transition-all hover:bg-rose-50 hover:scale-95 active:scale-90"
-                      >
-                        <Trash2 size={13} /> Remove
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleRemove(originalIdx)}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-500 transition-all hover:bg-rose-50 hover:scale-95 active:scale-90"
+                    >
+                      <Trash2 size={13} /> Remove
+                    </button>
                   </td>
                 </tr>
               );
@@ -241,7 +212,7 @@ export default function Table() {
         </table>
       </div>
 
-      {!isLog && slice && (
+      {slice && (
         <EditCellDialog
           dataId={tab as any}
           attribute={editing?.attribute ?? null}
