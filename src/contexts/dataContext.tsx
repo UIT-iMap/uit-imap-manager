@@ -20,7 +20,7 @@ import type {
   Transport,
 } from "../lib/types";
 import { CATEGORY_VALUES } from "../lib/types";
-import { httpGet, ENDPOINTS } from "../lib/httpClient";
+import { httpClient } from "../lib/httpClient";
 import { xyzArrRule, idRule, xyArrRule } from "../lib/utils/prototypes";
 import { useUser } from "./userContext";
 
@@ -105,15 +105,18 @@ const RULES: Record<DataId, TableRule[]> = {
 };
 
 const URLS: Record<DataId, string> = {
-  hotspots: ENDPOINTS.hotspots,
-  rooms: ENDPOINTS.rooms,
-  edges: ENDPOINTS.edges,
-  tourScenes: ENDPOINTS.tourScenes,
-  tourspots: ENDPOINTS.tourspots,
-  transport: ENDPOINTS.transport,
+  hotspots: "/hotspots",
+  rooms: "/rooms",
+  edges: "/hotspot-edges",
+  tourScenes: "/tourScenes",
+  tourspots: "/tourspots",
+  transport: "/transport",
 };
 
-export type DataContextValue = Record<DataId, DataSlice>;
+export interface DataContextValue extends Record<DataId, DataSlice> {
+  saveAll: (token?: string | null) => Promise<void>;
+  saveSlice: (id: DataId, token?: string | null) => Promise<void>;
+}
 
 const DataContext = createContext<DataContextValue | undefined>(undefined);
 
@@ -128,7 +131,7 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
     setLoading(true);
     setError(null);
     try {
-      const raw = await httpGet<any>(URLS[id], []);
+      const raw = await httpClient.get<any>(URLS[id]);
       setData(Array.isArray(raw) ? raw : []);
     } catch (e) {
       setError((e as Error).message);
@@ -136,6 +139,40 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
       setLoading(false);
     }
   }, [id]);
+
+  const save = useCallback(
+    async (token?: string | null) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        let payload: any = dataRef.current;
+        if (id === "edges") {
+          payload = dataRef.current.map((r: any) =>
+            r.endpoints ? r.endpoints : r,
+          );
+        }
+
+        await httpClient.put(URLS[id], {
+          headers,
+          body: payload,
+        });
+      } catch (e: any) {
+        const msg = e.message || `Failed to save ${id}`;
+        setError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [id],
+  );
 
   const rowIdKey = ROW_ID_KEYS[id];
 
@@ -191,6 +228,7 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
       tableRules: RULES[id],
       rowIdKey,
       fetch,
+      save,
       addRow,
       removeRow,
       editRow,
@@ -204,6 +242,7 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
       error,
       rowIdKey,
       fetch,
+      save,
       addRow,
       removeRow,
       editRow,
@@ -221,7 +260,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const tourspots = useSlice<Tourspot>("tourspots");
   const transport = useSlice<Transport>("transport");
 
-  const slices = useMemo<DataContextValue>(
+  const slices = useMemo(
     () => ({
       hotspots,
       rooms,
@@ -231,6 +270,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
       transport,
     }),
     [hotspots, rooms, edges, tourScenes, tourspots, transport],
+  );
+
+  const saveSlice = useCallback(
+    async (id: DataId, token?: string | null) => {
+      if (slices[id]) {
+        await slices[id].save(token);
+      }
+    },
+    [slices],
+  );
+
+  const saveAll = useCallback(
+    async (token?: string | null) => {
+      const ids: DataId[] = [
+        "hotspots",
+        "rooms",
+        "edges",
+        "tourScenes",
+        "tourspots",
+        "transport",
+      ];
+      await Promise.all(ids.map((id) => slices[id].save(token)));
+    },
+    [slices],
+  );
+
+  const contextValue = useMemo<DataContextValue>(
+    () => ({
+      ...slices,
+      saveAll,
+      saveSlice,
+    }),
+    [slices, saveAll, saveSlice],
   );
 
   useEffect(() => {
@@ -243,7 +315,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <DataContext.Provider value={slices}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider value={contextValue}>{children}</DataContext.Provider>
+  );
 }
 
 export function useData() {
@@ -251,3 +325,4 @@ export function useData() {
   if (!ctx) throw new Error("useData must be used within DataProvider");
   return ctx;
 }
+

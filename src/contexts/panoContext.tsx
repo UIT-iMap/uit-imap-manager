@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import type { MarzipanoScene, TourScene } from "@/lib/types/pano";
-import { httpGet, ENDPOINTS } from "@/lib/httpClient";
+import { httpClient } from "@/lib/httpClient";
 import { useData } from "@/contexts/dataContext";
 
 interface PanoContextValue {
@@ -64,14 +64,15 @@ export function PanoProvider({ children }: { children: React.ReactNode }) {
         setCurrentSceneId(dataContextScenes.data[0].id);
       }
     } else {
-      httpGet<TourScene[]>(ENDPOINTS.tourScenes, [])
-        .then((data) => {
+      httpClient
+        .get<TourScene[]>("/tourScenes")
+        .then((data: TourScene[]) => {
           setTourScenes(data);
           if (data.length > 0) {
             setCurrentSceneId((prev) => prev || data[0].id);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error("Error loading tour scenes data:", err);
         });
     }

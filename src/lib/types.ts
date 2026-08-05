@@ -167,6 +167,7 @@ export interface DataSlice<T = any> {
   tableRules: TableRule[];
   rowIdKey: string; // which field acts as the row's primary key
   fetch: () => Promise<void>;
+  save: (token?: string | null) => Promise<void>;
   removeRow?: (rowIdx: number) => void;
   addRow?: (row: T) => void;
   editRow?: (attribute: string, rowIdx: number, newValue: any) => void;

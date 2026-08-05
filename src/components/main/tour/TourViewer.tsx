@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { usePano } from "@/contexts/panoContext";
 import { useData } from "@/contexts/dataContext";
-import { BASE_URL } from "@/lib/httpClient";
+import { API_BASE_URL } from "@/lib/apiConfig";
 import { cn, getSceneShareUrl } from "@/lib/utils";
 import { getTileBlobUrl } from "@/lib/utils/tileRegistry";
 import {
@@ -571,9 +571,10 @@ export default function TourViewer({
     });
     viewerRef.current = viewer;
 
+    const apiBase = API_BASE_URL.replace(/\/$/, "");
     const localPreview = getTileBlobUrl(`${sceneData.id}/preview.jpg`);
     const previewUrl =
-      localPreview || `${BASE_URL}tiles/${sceneData.id}/preview.jpg`;
+      localPreview || `${apiBase}/tiles/${sceneData.id}/preview.jpg`;
 
     const tileUrlFunc = (tile: any) => {
       const face = tile.face ?? tile.f ?? "";
@@ -584,7 +585,7 @@ export default function TourViewer({
         return { url: blobUrl };
       }
       return {
-        url: `${BASE_URL}tiles/${sceneData.id}/${tile.z}/${face}/${tile.y}/${tile.x}.jpg`,
+        url: `${apiBase}/tiles/${sceneData.id}/${tile.z}/${face}/${tile.y}/${tile.x}.jpg`,
       };
     };
 

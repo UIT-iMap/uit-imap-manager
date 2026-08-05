@@ -7,6 +7,7 @@ import UploadZipDialog, { downloadTilesArchive } from "../ui/UploadZipDialog";
 import UploadPreviewDialog from "../ui/UploadPreviewDialog";
 import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
+import { useUser } from "../../contexts/userContext";
 import { useModel } from "../../contexts/modelContext";
 import { useFloor } from "../../contexts/floorContext";
 import { usePano } from "../../contexts/panoContext";
@@ -21,6 +22,7 @@ import type JSZip from "jszip";
 export default function Topbar() {
   const { tab } = useTab();
   const data = useData();
+  const { token } = useUser();
   const {
     currentSceneId,
     currentScene,
@@ -52,6 +54,7 @@ export default function Topbar() {
   const [previewRows, setPreviewRows] = useState<UploadPreviewRow[]>([]);
   const [pendingTilesZip, setPendingTilesZip] = useState<JSZip | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [tourspotDropdownOpen, setTourspotDropdownOpen] = useState(false);
 
   // Panorama processing states & refs
@@ -289,9 +292,22 @@ export default function Topbar() {
     }
   };
 
-  const handleSave = () => {
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 1200);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      if (slice) {
+        await slice.save(token);
+      } else {
+        await data.saveAll(token);
+      }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
+    } catch (err: any) {
+      console.error("Save error:", err);
+      alert(err.message || "Failed to save data to server");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isFloorPreview) {
@@ -543,12 +559,9 @@ export default function Topbar() {
             variant={pickMode === "edge" ? "primary" : "secondary"}
             icon={<Plus size={14} />}
             onClick={() => startPicking("edge")}
+            disabled={pickMode === "edge"}
           >
-            {pickMode === "edge"
-              ? edgeFirstId
-                ? "Click second hotspot…"
-                : "Click first hotspot…"
-              : "Add Edge"}
+            Add Edge
           </Button>
           {pickMode && (
             <Button
@@ -606,8 +619,9 @@ export default function Topbar() {
           variant="primary"
           icon={<Save size={14} />}
           onClick={handleSave}
+          disabled={isSaving}
         >
-          {savedFlash ? "Saved!" : "Save"}
+          {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save"}
         </Button>
       </div>
 

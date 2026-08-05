@@ -5,13 +5,22 @@ import { useUser } from "../../contexts/userContext";
 
 export default function Login() {
   const { login } = useUser();
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] = useState("admin");
+  const [password, setPassword] = useState("123");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Any data entered is valid; auth logic intentionally left blank.
-    login(name);
+    setError(null);
+    setLoading(true);
+    try {
+      await login(name, password);
+    } catch (err: any) {
+      setError(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -28,12 +37,19 @@ export default function Login() {
           <p className="text-sm text-slate-400">Sign in to manage map data</p>
         </div>
 
+        {error && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-600 font-medium">
+            {error}
+          </div>
+        )}
+
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">Username</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. admin"
+            required
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-400"
           />
         </div>
@@ -44,14 +60,22 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            required
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-400"
           />
         </div>
 
-        <Button type="submit" variant="primary" icon={<LogIn size={15} />} className="w-full justify-center">
-          Sign in
+        <Button
+          type="submit"
+          variant="primary"
+          icon={<LogIn size={15} />}
+          disabled={loading}
+          className="w-full justify-center"
+        >
+          {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
     </div>
   );
 }
+

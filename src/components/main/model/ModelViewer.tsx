@@ -10,7 +10,7 @@ import {
 import { useData } from "../../../contexts/dataContext";
 import { useModel } from "../../../contexts/modelContext";
 import type { Hotspot } from "../../../lib/types";
-import { BASE_URL } from "../../../lib/httpClient";
+import { API_BASE_URL } from "../../../lib/apiConfig";
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -241,6 +241,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         // Only place/save if the user clicked on a valid location on the model surface
         if (!hit) return;
 
+        if (!window.confirm("Place this spot here?")) return;
+
         const finalPos: [number, number, number] = [
           hit.position.x,
           hit.position.y,
@@ -469,7 +471,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
 
         <model-viewer
           ref={mvRef}
-          src={`${BASE_URL}map.glb`}
+          src={`${API_BASE_URL.replace(/\/$/, "")}/map.glb`}
           camera-controls
           tone-mapping="neutral"
           shadow-intensity="0"
