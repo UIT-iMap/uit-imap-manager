@@ -1,15 +1,52 @@
+import { useState } from "react";
+import { Save } from "lucide-react";
+import Button from "../ui/Button";
 import { useTab, TAB_GROUPS } from "../../contexts/tabContext";
+import { useData } from "../../contexts/dataContext";
+import { useUser } from "../../contexts/userContext";
+import type { DataId } from "../../lib/types";
 
 export default function RightBar() {
   const { tab, setTab } = useTab();
+  const data = useData();
+  const { token } = useUser();
+
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isModel = tab === "model";
+  const isFloorPreview = tab === "floorPreview";
+  const slice = !isModel && !isFloorPreview ? data[tab as DataId] : null;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      if (slice) {
+        await slice.save(token);
+      } else {
+        await data.saveAll(token);
+      }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
+    } catch (err: any) {
+      console.error("Save error:", err);
+      alert(err.message || "Failed to save data to server");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <aside className="flex h-full w-48 shrink-0 flex-col gap-1 border-l border-slate-200 bg-white p-3">
-      <div className="mb-2 px-1">
-        <h1 className="text-sm font-bold tracking-tight text-slate-800">
-          UIT <span className="text-sky-500">iMap</span> Manager
-        </h1>
-      </div>
+      <Button
+        variant="primary"
+        icon={<Save size={14} />}
+        onClick={handleSave}
+        disabled={isSaving}
+        className="w-full justify-center mb-1"
+      >
+        {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save"}
+      </Button>
       {TAB_GROUPS.map((group, index) => (
         <div key={group.name} className="flex flex-col gap-1">
           {index > 0 && <div className="my-1 border-t border-slate-200" />}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Upload, Download, Save, FolderArchive, X } from "lucide-react";
+import { Plus, Upload, Download, FolderArchive, X } from "lucide-react";
 import Button from "../ui/Button";
 import NewRowDialog from "../ui/NewRowDialog";
 import UploadJsonDialog from "../ui/UploadJsonDialog";
@@ -53,8 +53,6 @@ export default function Topbar() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRows, setPreviewRows] = useState<UploadPreviewRow[]>([]);
   const [pendingTilesZip, setPendingTilesZip] = useState<JSZip | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [tourspotDropdownOpen, setTourspotDropdownOpen] = useState(false);
 
   // Panorama processing states & refs
@@ -289,24 +287,6 @@ export default function Topbar() {
       );
     } else {
       downloadJson(`${String(tab)}.json`, slice.data);
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      if (slice) {
-        await slice.save(token);
-      } else {
-        await data.saveAll(token);
-      }
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1200);
-    } catch (err: any) {
-      console.error("Save error:", err);
-      alert(err.message || "Failed to save data to server");
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -614,14 +594,6 @@ export default function Topbar() {
           onClick={handleDownload}
         >
           Download JSON
-        </Button>
-        <Button
-          variant="primary"
-          icon={<Save size={14} />}
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save"}
         </Button>
       </div>
 
