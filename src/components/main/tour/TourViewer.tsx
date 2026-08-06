@@ -11,15 +11,10 @@ import { getTileBlobUrl } from "@/lib/utils/tileRegistry";
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
-  List,
   Move,
-  Plus,
   RefreshCw,
   RotateCw,
-  Share2,
   Trash2,
   X,
 } from "lucide-react";

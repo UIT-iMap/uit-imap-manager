@@ -3,7 +3,7 @@ import { Plus, Upload, Download, FolderArchive, X } from "lucide-react";
 import Button from "../ui/Button";
 import NewRowDialog from "../ui/NewRowDialog";
 import UploadJsonDialog from "../ui/UploadJsonDialog";
-import UploadZipDialog, { downloadTilesArchive } from "../ui/UploadZipDialog";
+import UploadZipDialog from "../ui/UploadZipDialog";
 import UploadPreviewDialog from "../ui/UploadPreviewDialog";
 import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
@@ -14,6 +14,7 @@ import { usePano } from "../../contexts/panoContext";
 import { downloadJson } from "../../lib/utils/jsons";
 import {
   processPanoramaFile,
+  uploadTileFolder,
   type ProcessProgress,
 } from "../../lib/utils/panoProcessor";
 import type { UploadPreviewRow, DataId } from "../../lib/types";
@@ -103,7 +104,7 @@ export default function Topbar() {
         tourScenesSlice.addRow?.(result.scene);
       }
 
-      await downloadTilesArchive(result.tilesZip);
+      await uploadTileFolder(currentSceneId, result.tilesZip, token);
       setScene(currentSceneId);
     } catch (err: any) {
       console.error("Error updating panorama:", err);
@@ -163,7 +164,7 @@ export default function Topbar() {
           tourScenesSlice.addRow?.(result.scene);
         }
 
-        await downloadTilesArchive(result.tilesZip);
+        await uploadTileFolder(result.scene.id, result.tilesZip, token);
       }
 
       if (lastProcessedSceneId) {
@@ -235,7 +236,7 @@ export default function Topbar() {
     setPreviewOpen(true);
   };
 
-  const handleConfirmUpload = (checkedRows: UploadPreviewRow[]) => {
+  const handleConfirmUpload = async (checkedRows: UploadPreviewRow[]) => {
     if (!slice) return;
     for (const r of checkedRows) {
       const idx = slice.data.findIndex(
@@ -247,7 +248,9 @@ export default function Topbar() {
       slice.addRow?.(r.raw);
     }
     if (pendingTilesZip) {
-      // downloadTilesArchive(pendingTilesZip);
+      for (const r of checkedRows) {
+        await uploadTileFolder(r.id, pendingTilesZip, token);
+      }
       setPendingTilesZip(null);
     }
   };

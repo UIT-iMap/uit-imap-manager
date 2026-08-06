@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { TourScene, TourLevel } from "../types";
 import { registerTileBlobs } from "./tileRegistry";
+import { httpClient } from "../httpClient";
 
 export const TILE_SIZE = 512;
 export const MIN_FACE_SIZE = 512;
@@ -475,3 +476,49 @@ export async function processPanoramaFile(
     blobUrls,
   };
 }
+
+/**
+ * Uploads all tiles from a JSZip instance to backend API PUT /api/tiles/:folderName
+ */
+export async function uploadTileFolder(
+  folderName: string,
+  tilesZip: JSZip,
+  token?: string | null,
+): Promise<void> {
+  const files: { path: string; content: string; encoding: string }[] = [];
+
+  for (const [relativePath, zipEntry] of Object.entries(tilesZip.files)) {
+    if (zipEntry.dir) continue;
+    let cleanPath = relativePath.replace(/\\/g, "/");
+    const scenePrefixRegex = new RegExp(`^tiles\\/${folderName}\\/`, "i");
+    if (scenePrefixRegex.test(cleanPath)) {
+      cleanPath = cleanPath.replace(scenePrefixRegex, "");
+    } else {
+      cleanPath = cleanPath.replace(/^tiles\//i, "");
+    }
+    if (!cleanPath || cleanPath.endsWith("data.json")) continue;
+
+    const base64Content = await zipEntry.async("base64");
+    files.push({
+      path: cleanPath,
+      content: base64Content,
+      encoding: "base64",
+    });
+  }
+
+  if (files.length === 0) return;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  await httpClient.put(`/tiles/${encodeURIComponent(folderName)}`, {
+    headers,
+    body: { files },
+    timeout: 60000,
+  });
+}
+

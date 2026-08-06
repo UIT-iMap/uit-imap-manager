@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { Upload } from "lucide-react";
 import Dialog from "./Dialog";
 import Button from "./Button";
@@ -193,9 +192,4 @@ export default function UploadZipDialog({ isOpen, onClose, onParsed }: UploadZip
       )}
     </Dialog>
   );
-}
-
-export async function downloadTilesArchive(tilesZip: JSZip) {
-  const blob = await tilesZip.generateAsync({ type: "blob" });
-  saveAs(blob, `tour-scene-tiles-${Date.now()}.zip`);
 }

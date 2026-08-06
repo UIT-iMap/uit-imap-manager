@@ -4,7 +4,6 @@ import Button from "../ui/Button";
 import { useTab, TAB_GROUPS } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
 import { useUser } from "../../contexts/userContext";
-import type { DataId } from "../../lib/types";
 
 export default function RightBar() {
   const { tab, setTab } = useTab();
@@ -14,18 +13,10 @@ export default function RightBar() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const isModel = tab === "model";
-  const isFloorPreview = tab === "floorPreview";
-  const slice = !isModel && !isFloorPreview ? data[tab as DataId] : null;
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      if (slice) {
-        await slice.save(token);
-      } else {
-        await data.saveAll(token);
-      }
+      await data.saveAll(token);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1200);
     } catch (err: any) {
@@ -45,7 +36,7 @@ export default function RightBar() {
         disabled={isSaving}
         className="w-full justify-center mb-1"
       >
-        {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save"}
+        {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save all"}
       </Button>
       {TAB_GROUPS.map((group, index) => (
         <div key={group.name} className="flex flex-col gap-1">
