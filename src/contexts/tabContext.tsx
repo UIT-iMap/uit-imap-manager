@@ -1,16 +1,8 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { TabId } from "../lib/types";
-import {
-  MapPin,
-  DoorOpen,
-  Waypoints,
-  Compass,
-  Image,
-  Bus,
-  Package,
-  LayoutGrid,
-} from "lucide-react";
+import { Image, Bus, Package, LayoutGrid, BookOpen } from "lucide-react";
+import { useData } from "./dataContext";
 
 export interface TabDef {
   id: TabId;
@@ -18,33 +10,13 @@ export interface TabDef {
   icon: ComponentType<{ size?: number; className?: string }>;
 }
 
-export interface TabGroup {
-  name: string;
-  tabs: TabDef[];
-}
-
-export const TAB_GROUPS: TabGroup[] = [
-  {
-    name: "Location",
-    tabs: [
-      { id: "model", label: "Model Preview", icon: Package },
-      { id: "floorPreview", label: "Floor Preview", icon: LayoutGrid },
-      { id: "tourScenes", label: "Scenes Preview", icon: Image },
-    ],
-  },
-  {
-    name: "Details",
-    tabs: [
-      { id: "hotspots", label: "Hotspots", icon: MapPin },
-      { id: "edges", label: "Edges", icon: Waypoints },
-      { id: "rooms", label: "Rooms", icon: DoorOpen },
-      { id: "tourspots", label: "Tourspots", icon: Compass },
-      { id: "transport", label: "Transport", icon: Bus },
-    ],
-  },
+export const TABS: TabDef[] = [
+  { id: "model", label: "Map", icon: Package },
+  { id: "rooms", label: "Rooms", icon: LayoutGrid },
+  { id: "tourScenes", label: "Scenes", icon: Image },
+  { id: "transport", label: "Transport", icon: Bus },
+  { id: "guide", label: "Guide", icon: BookOpen },
 ];
-
-export const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs);
 
 interface TabContextValue {
   tab: TabId;
@@ -54,7 +26,23 @@ interface TabContextValue {
 const TabContext = createContext<TabContextValue | undefined>(undefined);
 
 export function TabProvider({ children }: { children: ReactNode }) {
-  const [tab, setTab] = useState<TabId>("hotspots");
+  const [tab, setTabState] = useState<TabId>("model");
+  const { autoSave, hasUnsavedChanges } = useData();
+
+  const setTab = useCallback(
+    (nextTab: TabId) => {
+      if (nextTab === tab) return;
+      if (!autoSave && hasUnsavedChanges) {
+        const confirmed = window.confirm(
+          "Changes you made may not be saved!",
+        );
+        if (!confirmed) return;
+      }
+      setTabState(nextTab);
+    },
+    [tab, autoSave, hasUnsavedChanges],
+  );
+
   return (
     <TabContext.Provider value={{ tab, setTab }}>
       {children}

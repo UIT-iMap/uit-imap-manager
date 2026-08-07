@@ -8,7 +8,7 @@ export type DataId =
   | "tourspots"
   | "transport";
 
-export type TabId = DataId | "model" | "floorPreview";
+export type TabId = DataId | "model" | "guide";
 
 export interface User {
   name: string;

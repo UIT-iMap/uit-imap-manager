@@ -52,8 +52,8 @@ const roomRules: TableRule[] = [
     values: CATEGORY_VALUES,
   },
   { name: "description", label: "Description", isMandatory: false },
-  // xyArrRule("rows", "Rows"),
-  // xyArrRule("cols", "Cols"),
+  xyArrRule("cols", "Cols", false),
+  xyArrRule("rows", "Rows", false),
 ];
 
 const edgeRules: TableRule[] = [
@@ -116,16 +116,31 @@ const URLS: Record<DataId, string> = {
 export interface DataContextValue extends Record<DataId, DataSlice> {
   saveAll: (token?: string | null) => Promise<void>;
   saveSlice: (id: DataId, token?: string | null) => Promise<void>;
+  autoSave: boolean;
+  setAutoSave: (v: boolean) => void;
+  hasUnsavedChanges: boolean;
+  setHasUnsavedChanges: (v: boolean) => void;
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined);
 
-function useSlice<T = any>(id: DataId): DataSlice<T> {
+function useSlice<T = any>(
+  id: DataId,
+  autoSave: boolean,
+  token: string | null,
+  markUnsaved: () => void,
+): DataSlice<T> {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dataRef = useRef<T[]>([]);
   dataRef.current = data;
+
+  const autoSaveRef = useRef(autoSave);
+  autoSaveRef.current = autoSave;
+
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -140,21 +155,23 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
     }
   }, [id]);
 
-  const save = useCallback(
-    async (token?: string | null) => {
+  const saveWithData = useCallback(
+    async (currentData: T[], authToken?: string | null) => {
       setLoading(true);
       setError(null);
       try {
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
         };
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
+        const activeToken =
+          authToken !== undefined ? authToken : tokenRef.current;
+        if (activeToken) {
+          headers["Authorization"] = `Bearer ${activeToken}`;
         }
 
-        let payload: any = dataRef.current;
+        let payload: any = currentData;
         if (id === "edges") {
-          payload = dataRef.current.map((r: any) =>
+          payload = currentData.map((r: any) =>
             r.endpoints ? r.endpoints : r,
           );
         }
@@ -174,49 +191,74 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
     [id],
   );
 
+  const save = useCallback(
+    (authToken?: string | null) => saveWithData(dataRef.current, authToken),
+    [saveWithData],
+  );
+
+  const handleMutation = useCallback(
+    (newData: T[]) => {
+      setData(newData);
+      dataRef.current = newData;
+      if (autoSaveRef.current) {
+        saveWithData(newData).catch((err) => {
+          console.error(`Auto save failed for ${id}:`, err);
+        });
+      } else {
+        markUnsaved();
+      }
+    },
+    [id, saveWithData, markUnsaved],
+  );
+
   const rowIdKey = ROW_ID_KEYS[id];
 
-  const addRow = useCallback((row: T) => {
-    setData((prev) => [...prev, row]);
-  }, []);
+  const addRow = useCallback(
+    (row: T) => {
+      handleMutation([...dataRef.current, row]);
+    },
+    [handleMutation],
+  );
 
-  const removeRow = useCallback((rowIdx: number) => {
-    const target = dataRef.current[rowIdx];
-    if (!target) return;
-    setData((prev) => prev.filter((_, i) => i !== rowIdx));
-  }, []);
+  const removeRow = useCallback(
+    (rowIdx: number) => {
+      const target = dataRef.current[rowIdx];
+      if (!target) return;
+      handleMutation(dataRef.current.filter((_, i) => i !== rowIdx));
+    },
+    [handleMutation],
+  );
 
   const editRow = useCallback(
     (attribute: string, rowIdx: number, newValue: any) => {
       const target = dataRef.current[rowIdx];
       if (!target) return;
-      setData((prev) => {
-        const updated = { ...prev[rowIdx], [attribute]: newValue };
-        const next = [...prev];
-        next[rowIdx] = updated;
-        return next;
-      });
+      const updated = { ...dataRef.current[rowIdx], [attribute]: newValue };
+      const next = [...dataRef.current];
+      next[rowIdx] = updated;
+      handleMutation(next);
     },
-    [],
+    [handleMutation],
   );
 
   const editRowFields = useCallback(
     (rowIdx: number, fields: Record<string, any>) => {
       const target = dataRef.current[rowIdx];
       if (!target) return;
-      setData((prev) => {
-        const updated = { ...prev[rowIdx], ...fields };
-        const next = [...prev];
-        next[rowIdx] = updated;
-        return next;
-      });
+      const updated = { ...dataRef.current[rowIdx], ...fields };
+      const next = [...dataRef.current];
+      next[rowIdx] = updated;
+      handleMutation(next);
     },
-    [],
+    [handleMutation],
   );
 
-  const setAll = useCallback((rows: T[]) => {
-    setData(rows);
-  }, []);
+  const setAll = useCallback(
+    (rows: T[]) => {
+      handleMutation(rows);
+    },
+    [handleMutation],
+  );
 
   return useMemo(
     () => ({
@@ -253,12 +295,35 @@ function useSlice<T = any>(id: DataId): DataSlice<T> {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const hotspots = useSlice<Hotspot>("hotspots");
-  const rooms = useSlice<Room>("rooms");
-  const edges = useSlice<Edge>("edges");
-  const tourScenes = useSlice<TourScene>("tourScenes");
-  const tourspots = useSlice<Tourspot>("tourspots");
-  const transport = useSlice<Transport>("transport");
+  const { token } = useUser();
+  const [autoSave, setAutoSaveState] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const markUnsaved = useCallback(() => {
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const hotspots = useSlice<Hotspot>("hotspots", autoSave, token, markUnsaved);
+  const rooms = useSlice<Room>("rooms", autoSave, token, markUnsaved);
+  const edges = useSlice<Edge>("edges", autoSave, token, markUnsaved);
+  const tourScenes = useSlice<TourScene>(
+    "tourScenes",
+    autoSave,
+    token,
+    markUnsaved,
+  );
+  const tourspots = useSlice<Tourspot>(
+    "tourspots",
+    autoSave,
+    token,
+    markUnsaved,
+  );
+  const transport = useSlice<Transport>(
+    "transport",
+    autoSave,
+    token,
+    markUnsaved,
+  );
 
   const slices = useMemo(
     () => ({
@@ -273,16 +338,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
 
   const saveSlice = useCallback(
-    async (id: DataId, token?: string | null) => {
+    async (id: DataId, tokenOverride?: string | null) => {
       if (slices[id]) {
-        await slices[id].save(token);
+        await slices[id].save(tokenOverride);
+        setHasUnsavedChanges(false);
       }
     },
     [slices],
   );
 
   const saveAll = useCallback(
-    async (token?: string | null) => {
+    async (tokenOverride?: string | null) => {
       const ids: DataId[] = [
         "hotspots",
         "rooms",
@@ -291,18 +357,58 @@ export function DataProvider({ children }: { children: ReactNode }) {
         "tourspots",
         "transport",
       ];
-      await Promise.all(ids.map((id) => slices[id].save(token)));
+      await Promise.all(ids.map((id) => slices[id].save(tokenOverride)));
+      setHasUnsavedChanges(false);
     },
     [slices],
   );
+
+  const setAutoSave = useCallback(
+    (val: boolean) => {
+      setAutoSaveState(val);
+      if (val && hasUnsavedChanges) {
+        saveAll(token).catch((err) =>
+          console.error("Auto-save sync failed:", err),
+        );
+      }
+    },
+    [hasUnsavedChanges, saveAll, token],
+  );
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!autoSave && hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "Changes you made may not be saved!";
+        return "Changes you made may not be saved!";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [autoSave, hasUnsavedChanges]);
 
   const contextValue = useMemo<DataContextValue>(
     () => ({
       ...slices,
       saveAll,
       saveSlice,
+      autoSave,
+      setAutoSave,
+      hasUnsavedChanges,
+      setHasUnsavedChanges,
     }),
-    [slices, saveAll, saveSlice],
+    [
+      slices,
+      saveAll,
+      saveSlice,
+      autoSave,
+      setAutoSave,
+      hasUnsavedChanges,
+      setHasUnsavedChanges,
+    ],
   );
 
   useEffect(() => {

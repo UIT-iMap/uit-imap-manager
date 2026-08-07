@@ -7,10 +7,8 @@ import Topbar from "./components/main/Topbar";
 import Table from "./components/main/Table";
 import Shortcuts from "./components/main/Shortcuts";
 import ModelViewer from "./components/main/model/ModelViewer";
-import FloorPreview from "./components/main/FloorPreview";
 import ScenesPreview from "./components/main/tour/ScenesPreview";
 import { ModelProvider } from "./contexts/modelContext";
-import { FloorProvider } from "./contexts/floorContext";
 import { PanoProvider } from "./contexts/panoContext";
 
 function Workspace() {
@@ -22,10 +20,14 @@ function Workspace() {
         <Topbar />
         {tab === "model" ? (
           <ModelViewer />
-        ) : tab === "floorPreview" ? (
-          <FloorPreview />
         ) : tab === "tourScenes" ? (
           <ScenesPreview />
+        ) : tab === "guide" ? (
+          <iframe
+            src="/manager/guide.pdf"
+            className="h-full w-full border-0"
+            title="User Guide"
+          />
         ) : (
           <Table />
         )}
@@ -37,17 +39,15 @@ function Workspace() {
 }
 
 function Gate() {
-  const { isAuthed } = useUser();
-  if (!isAuthed) return <Login />;
+  // const { isAuthed } = useUser();
+  // if (!isAuthed) return <Login />;
   return (
     <DataProvider>
       <TabProvider>
         <ModelProvider>
-          <FloorProvider>
-            <PanoProvider>
-              <Workspace />
-            </PanoProvider>
-          </FloorProvider>
+          <PanoProvider>
+            <Workspace />
+          </PanoProvider>
         </ModelProvider>
       </TabProvider>
     </DataProvider>

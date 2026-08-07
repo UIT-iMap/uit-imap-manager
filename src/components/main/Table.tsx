@@ -18,8 +18,9 @@ import {
 import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
 import { useUser } from "../../contexts/userContext";
-import type { TableRule, DataId } from "../../lib/types";
+import type { TableRule, DataId, Room } from "../../lib/types";
 import EditCellDialog from "../ui/EditCellDialog";
+import RoomFloorDialog from "../ui/RoomFloorDialog";
 
 function formatCellValue(value: any): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -39,8 +40,9 @@ export default function Table() {
     attribute: string;
     rowIdx: number;
   } | null>(null);
+  const [roomFloorEditing, setRoomFloorEditing] = useState<Room | null>(null);
 
-  const isDataTab = tab !== "model" && tab !== "floorPreview";
+  const isDataTab = tab !== "model";
   const slice = isDataTab ? data[tab as DataId] : null;
 
   const rules: TableRule[] = useMemo(() => {
@@ -93,11 +95,27 @@ export default function Table() {
     },
   });
 
-  if (tab === "model" || tab === "floorPreview") return <></>;
+  if (tab === "model") return <></>;
 
   const handleRemove = (rowIdx: number) => {
     if (!slice?.removeRow) return;
-    if (confirm("Remove this row?")) slice.removeRow(rowIdx);
+    if (confirm("Remove this row?")) {
+      if (tab === "hotspots") {
+        const h = slice.data[rowIdx];
+        if (h?.id) {
+          const edgesSlice = data.edges;
+          if (edgesSlice?.setAll && edgesSlice.data) {
+            const remainingEdges = edgesSlice.data.filter(
+              (e: any) => e.first !== h.id && e.second !== h.id,
+            );
+            if (remainingEdges.length !== edgesSlice.data.length) {
+              edgesSlice.setAll(remainingEdges);
+            }
+          }
+        }
+      }
+      slice.removeRow(rowIdx);
+    }
   };
 
   return (
@@ -171,6 +189,14 @@ export default function Table() {
                         key={cell.id}
                         onDoubleClick={() => {
                           if (!isEditable) return;
+                          if (
+                            tab === "rooms" &&
+                            (cell.column.id === "cols" ||
+                              cell.column.id === "rows")
+                          ) {
+                            setRoomFloorEditing(row.original);
+                            return;
+                          }
                           setEditing({
                             attribute: cell.column.id,
                             rowIdx: originalIdx,
@@ -218,6 +244,13 @@ export default function Table() {
           attribute={editing?.attribute ?? null}
           rowIdx={editing?.rowIdx ?? null}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {tab === "rooms" && (
+        <RoomFloorDialog
+          room={roomFloorEditing}
+          isOpen={Boolean(roomFloorEditing)}
+          onClose={() => setRoomFloorEditing(null)}
         />
       )}
       {/* user is read here to keep the "by" attribution consistent with edits made from this table */}

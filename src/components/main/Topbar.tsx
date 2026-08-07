@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Upload, Download, FolderArchive, X } from "lucide-react";
+import { Plus, Upload, Download, FolderArchive, X, Trash2 } from "lucide-react";
 import Button from "../ui/Button";
 import NewRowDialog from "../ui/NewRowDialog";
 import UploadJsonDialog from "../ui/UploadJsonDialog";
@@ -9,7 +9,6 @@ import { useTab } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
 import { useUser } from "../../contexts/userContext";
 import { useModel } from "../../contexts/modelContext";
-import { useFloor } from "../../contexts/floorContext";
 import { usePano } from "../../contexts/panoContext";
 import { downloadJson } from "../../lib/utils/jsons";
 import {
@@ -46,8 +45,6 @@ export default function Topbar() {
     setShowTourspots,
     setTourspotSceneId,
   } = useModel();
-  const { building, setBuilding, floor, setFloor, roomId, setRoomId } =
-    useFloor();
 
   const [addOpen, setAddOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -197,29 +194,11 @@ export default function Topbar() {
     };
   }, [tourspotDropdownOpen]);
 
+  if (tab === "guide") return null;
+
   const isModel = tab === "model";
   const isScenes = tab === "tourScenes";
-  const isFloorPreview = tab === "floorPreview";
-  const slice = !isModel && !isFloorPreview ? data[tab as DataId] : null;
-
-  const hotspotIds = data.hotspots.data.map((h: any) => h.id);
-  const roomBelongsToIds = data.rooms.data
-    .map((r: any) => r.belongsTo)
-    .filter(Boolean);
-  const buildingOptions = Array.from(
-    new Set([
-      ...hotspotIds,
-      ...roomBelongsToIds,
-      "A",
-      "B",
-      "C",
-      "cA",
-      "cB",
-      "cC",
-    ]),
-  )
-    .filter(Boolean)
-    .sort();
+  const slice = !isModel ? data[tab as DataId] : null;
 
   const handleParsed = (rows: UploadPreviewRow[]) => {
     setPreviewRows(rows);
@@ -283,73 +262,12 @@ export default function Topbar() {
 
   const handleDownload = () => {
     if (!slice) return;
-    if (tab === "edges") {
-      downloadJson(
-        "hotspot-edges.json",
-        slice.data.map((r: any) => r.endpoints),
-      );
-    } else {
-      downloadJson(`${String(tab)}.json`, slice.data);
-    }
+    downloadJson(`${String(tab)}.json`, slice.data);
   };
-
-  if (isFloorPreview) {
-    return (
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-2 pt-2 border-b border-slate-200 pb-2">
-        <h2 className="text-lg font-semibold text-slate-800">Floor Preview</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-            <label htmlFor="building-select">Building:</label>
-            <select
-              id="building-select"
-              value={building}
-              onChange={(e) => setBuilding(e.target.value)}
-              className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm focus:border-sky-500 focus:outline-none cursor-pointer"
-            >
-              <option value="">-- Select Building --</option>
-              {buildingOptions.map((id) => {
-                const hObj = data.hotspots.data.find((h: any) => h.id === id);
-                return (
-                  <option key={id} value={id}>
-                    {hObj?.name ? `${id} (${hObj.name})` : id}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-            <label htmlFor="floor-input">Floor:</label>
-            <input
-              id="floor-input"
-              type="text"
-              value={floor}
-              onChange={(e) => setFloor(e.target.value)}
-              placeholder="e.g. 1"
-              className="w-20 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm focus:border-sky-500 focus:outline-none"
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-            <label htmlFor="room-id-input">Room ID:</label>
-            <input
-              id="room-id-input"
-              type="text"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              placeholder="e.g. 101"
-              readOnly
-              className="w-24 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm focus:border-sky-500 focus:outline-none cursor-not-allowed"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (isScenes) {
     return (
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-2 pt-2 border-b border-slate-200 pb-2">
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2 px-2 pt-2 border-b border-slate-200 pb-2">
         <input
           ref={updateFileInputRef}
           type="file"
@@ -365,8 +283,6 @@ export default function Topbar() {
           className="hidden"
           onChange={handleUploadPanoramaFilesChange}
         />
-
-        <h2 className="text-lg font-semibold text-slate-800">Scenes Preview</h2>
         <div className="flex items-center gap-2">
           <Button
             variant={isAddingLinkSpot ? "primary" : "secondary"}
@@ -475,8 +391,7 @@ export default function Topbar() {
 
   if (isModel) {
     return (
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
-        <h2 className="text-lg font-semibold text-slate-800">Model preview</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2 px-2 pt-2">
         <div className="flex items-center gap-2">
           <Button
             variant={pickMode === "hotspot" ? "primary" : "secondary"}
@@ -546,6 +461,14 @@ export default function Topbar() {
           >
             Add Edge
           </Button>
+          <Button
+            variant={pickMode === "remove_edge" ? "primary" : "secondary"}
+            icon={<Trash2 size={14} />}
+            onClick={() => startPicking("remove_edge")}
+            disabled={pickMode === "remove_edge"}
+          >
+            Remove Edge
+          </Button>
           {pickMode && (
             <Button
               variant="ghost"
@@ -572,10 +495,7 @@ export default function Topbar() {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
-      <h2 className="text-lg font-semibold capitalize text-slate-800">
-        {String(tab).replace(/([A-Z])/g, " $1")}
-      </h2>
+    <div className="flex flex-wrap items-center justify-end gap-2 px-2 pt-2">
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"

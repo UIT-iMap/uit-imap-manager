@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Save } from "lucide-react";
+import { Save, RefreshCw } from "lucide-react";
 import Button from "../ui/Button";
-import { useTab, TAB_GROUPS } from "../../contexts/tabContext";
+import { useTab, TABS } from "../../contexts/tabContext";
 import { useData } from "../../contexts/dataContext";
 import { useUser } from "../../contexts/userContext";
 
@@ -38,31 +38,37 @@ export default function RightBar() {
       >
         {isSaving ? "Saving..." : savedFlash ? "Saved!" : "Save all"}
       </Button>
-      {TAB_GROUPS.map((group, index) => (
-        <div key={group.name} className="flex flex-col gap-1">
-          {index > 0 && <div className="my-1 border-t border-slate-200" />}
-          <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {group.name}
-          </div>
-          {group.tabs.map(({ id, label, icon: Icon }) => {
-            const active = tab === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all hover:scale-95 active:scale-90 ${
-                  active
-                    ? "bg-sky-400 text-white hover:bg-sky-500"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Icon size={16} />
-                {label.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
-      ))}
+      <Button
+        variant={data.autoSave ? "primary" : "secondary"}
+        icon={
+          <RefreshCw
+            size={14}
+            className={data.autoSave ? "animate-spin-slow" : ""}
+          />
+        }
+        onClick={() => data.setAutoSave(!data.autoSave)}
+        className="w-full justify-center mb-2"
+      >
+        Auto save: {data.autoSave ? "ON" : "OFF"}
+      </Button>
+      <div className="w-full font-bold text-center mb-3">UIT iMap Manager</div>
+      {TABS.map(({ id, label, icon: Icon }) => {
+        const active = tab === id;
+        return (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all hover:scale-95 active:scale-90 ${
+              active
+                ? "bg-sky-400 text-white hover:bg-sky-500"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Icon size={16} />
+            {label.toUpperCase()}
+          </button>
+        );
+      })}
     </aside>
   );
 }

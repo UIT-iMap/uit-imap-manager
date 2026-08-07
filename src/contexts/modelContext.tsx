@@ -14,7 +14,7 @@ import type { DataId } from "../lib/types";
  * - "tourspot" -> next left-click on the model becomes a new Tourspot's dataPosition/dataNormal
  * - "edge"     -> next two clicks on existing hotspot buttons become an Edge's first/second
  */
-export type PickMode = "hotspot" | "tourspot" | "edge" | null;
+export type PickMode = "hotspot" | "tourspot" | "edge" | "remove_edge" | null;
 
 export interface PendingRow {
   /** unique-per-pick key, used to force NewRowDialog to remount with fresh state */
@@ -135,15 +135,17 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         // clicked the same hotspot twice, ignore
         return;
       }
-      setPendingRow({
-        key: `edges-${Date.now()}`,
-        dataId: "edges",
-        initialValues: { first: edgeFirstId, second: hotspotId },
-      });
-      setPickMode(null);
-      setEdgeFirstId(null);
+      if (pickMode === "edge") {
+        setPendingRow({
+          key: `edges-${Date.now()}`,
+          dataId: "edges",
+          initialValues: { first: edgeFirstId, second: hotspotId },
+        });
+        setPickMode(null);
+        setEdgeFirstId(null);
+      }
     },
-    [edgeFirstId],
+    [edgeFirstId, pickMode],
   );
 
   const clearPendingRow = useCallback(() => setPendingRow(null), []);

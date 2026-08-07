@@ -7,8 +7,11 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
+import { Move, FileText, Trash2 } from "lucide-react";
 import { useData } from "../../../contexts/dataContext";
 import { useModel } from "../../../contexts/modelContext";
+import HoverMenu from "../../ui/HoverMenu";
+import EditRowDialog from "../../ui/EditRowDialog";
 import type { Hotspot } from "../../../lib/types";
 import { API_BASE_URL } from "../../../lib/apiConfig";
 
@@ -63,13 +66,18 @@ interface EdgeLine {
 const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
   (_props, ref) => {
     const {
-      hotspots: { data: hotspots, editRowFields: editHotspotRowFields },
+      hotspots: {
+        data: hotspots,
+        editRowFields: editHotspotRowFields,
+        removeRow: removeHotspotRow,
+      },
       tourspots: {
         data: tourspots,
         editRowFields: editTourspotRowFields,
         addRow: addTourspotRow,
+        removeRow: removeTourspotRow,
       },
-      edges: { data: edges },
+      edges: { data: edges, removeRow: removeEdgeRow, setAll: setEdgesAll },
     } = useData();
 
     const {
@@ -93,12 +101,96 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     const [showHotspots, setShowHotspots] = useState(false);
     const [showEdges, setShowEdges] = useState(false);
     const [lines, setLines] = useState<EdgeLine[]>([]);
+    const [editingSpot, setEditingSpot] = useState<{
+      dataId: "hotspots" | "tourspots";
+      rowIdx: number;
+    } | null>(null);
 
     const isPickingPosition = pickMode === "hotspot" || pickMode === "tourspot";
-    const isPickingEdge = pickMode === "edge";
-    // Force hotspot buttons to render/be clickable while picking edge endpoints,
-    // even if the "Hotspots" checkbox is off.
+    const isPickingEdge = pickMode === "edge" || pickMode === "remove_edge";
+    // Force hotspot buttons and edge lines to render/be clickable while picking edge endpoints,
+    // even if the "Hotspots" or "Edges" checkboxes are off.
     const effectiveShowHotspots = showHotspots || isPickingEdge;
+    const effectiveShowEdges = showEdges || isPickingEdge;
+
+    // Automatically enable showHotspots and showEdges when edge picking mode is activated
+    useEffect(() => {
+      if (isPickingEdge) {
+        setShowHotspots(true);
+        setShowEdges(true);
+      }
+    }, [isPickingEdge]);
+
+    const handleEdgeHotspotClick = useCallback(
+      (clickedId: string) => {
+        if (pickMode === "edge") {
+          submitEdgeHotspotClick(clickedId);
+        } else if (pickMode === "remove_edge") {
+          if (!edgeFirstId) {
+            submitEdgeHotspotClick(clickedId);
+          } else {
+            if (edgeFirstId === clickedId) return;
+
+            const firstId = edgeFirstId;
+            const secondId = clickedId;
+
+            const idx = edges.findIndex(
+              (e: any) =>
+                (e.first === firstId && e.second === secondId) ||
+                (e.first === secondId && e.second === firstId),
+            );
+
+            if (idx === -1) {
+              alert("There is no edge between these 2 hotspots!");
+            } else {
+              removeEdgeRow?.(idx);
+            }
+
+            cancelPicking();
+          }
+        }
+      },
+      [
+        pickMode,
+        edgeFirstId,
+        submitEdgeHotspotClick,
+        edges,
+        removeEdgeRow,
+        cancelPicking,
+      ],
+    );
+
+    const handleRemoveHotspot = useCallback(
+      (hId: string, idx: number) => {
+        if (
+          window.confirm(`Are you sure you want to remove hotspot "${hId}"?`)
+        ) {
+          removeHotspotRow?.(idx);
+
+          const hasEdgesToRemove = edges.some(
+            (e: any) => e.first === hId || e.second === hId,
+          );
+          if (hasEdgesToRemove && setEdgesAll) {
+            const remainingEdges = edges.filter(
+              (e: any) => e.first !== hId && e.second !== hId,
+            );
+            setEdgesAll(remainingEdges);
+          }
+        }
+      },
+      [edges, removeHotspotRow, setEdgesAll],
+    );
+
+    const handleRemoveTourspot = useCallback(
+      (tId: string, idx: number) => {
+        if (
+          window.confirm(`Are you sure you want to remove tourspot "${tId}"?`)
+        ) {
+          removeTourspotRow?.(idx);
+        }
+      },
+      [removeTourspotRow],
+    );
 
     useImperativeHandle(ref, () => ({
       zoomTo: (hotspot: Hotspot) => {
@@ -145,7 +237,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
 
     useEffect(() => {
       const mv = mvRef.current;
-      if (!mv || !showEdges) {
+      if (!mv || !effectiveShowEdges) {
         setLines([]);
         return;
       }
@@ -158,7 +250,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         mv.removeEventListener("camera-change", updateEdgeLines);
         window.removeEventListener("resize", updateEdgeLines);
       };
-    }, [showEdges, updateEdgeLines]);
+    }, [effectiveShowEdges, updateEdgeLines]);
 
     // Keep model-viewer internal 3D hotspot positions synchronized automatically whenever position data changes
     useEffect(() => {
@@ -213,7 +305,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         }
       }
 
-      if (showEdges) {
+      if (effectiveShowEdges) {
         updateEdgeLines();
       }
     }, [
@@ -221,7 +313,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       tourspots,
       movingItem,
       tempPosNormal,
-      showEdges,
+      effectiveShowEdges,
       updateEdgeLines,
       isPickingPosition,
     ]);
@@ -332,10 +424,10 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     }, [movingItem, isPickingPosition, handleMouseMove, cancelPicking]);
 
     useEffect(() => {
-      if (movingItem && showEdges) {
+      if (movingItem && effectiveShowEdges) {
         updateEdgeLines();
       }
-    }, [movingItem, tempPosNormal, showEdges, updateEdgeLines]);
+    }, [movingItem, tempPosNormal, effectiveShowEdges, updateEdgeLines]);
 
     // While picking a hotspot/tourspot position, capture the user's left-click
     // on the model and convert it into a dataPosition + dataNormal pair.
@@ -463,9 +555,13 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         )}
         {isPickingEdge && !movingItem && (
           <div className="absolute top-3 left-3 z-10 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md">
-            {edgeFirstId
-              ? "Click the second hotspot to finish the edge."
-              : "Click the first hotspot to start the edge."}
+            {pickMode === "remove_edge"
+              ? edgeFirstId
+                ? "Click the second hotspot to remove the edge."
+                : "Click the first hotspot to select edge to remove."
+              : edgeFirstId
+                ? "Click the second hotspot to finish the edge."
+                : "Click the first hotspot to start the edge."}
           </div>
         )}
 
@@ -489,9 +585,10 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             cursor: isPickingPosition || movingItem ? "crosshair" : undefined,
           }}
         >
-          {hotspots.map((h) => {
+          {hotspots.map((h, idx) => {
             // Keep edge endpoints mounted (invisibly) so queryHotspot can find them
-            const neededForEdges = showEdges && edgeHotspotIds.has(h.id);
+            const neededForEdges =
+              effectiveShowEdges && edgeHotspotIds.has(h.id);
             if (!effectiveShowHotspots && !neededForEdges) return null;
             const isMoving =
               movingItem?.type === "hotspot" && movingItem?.id === h.id;
@@ -503,58 +600,93 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               isMoving && tempPosNormal ? tempPosNormal.normal : h.dataNormal;
             const isSelectedFirst = isPickingEdge && edgeFirstId === h.id;
             return (
-              <button
+              <div
                 key={`hotspot-${h.id}`}
                 slot={`hotspot-${h.id}`}
                 data-position={`${x}m ${y}m ${z}m`}
                 data-normal={`${nx}m ${ny}m ${nz}m`}
-                aria-label={h.name ?? h.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (movingItem) {
-                    placeMovingItem(e.nativeEvent);
-                    return;
-                  }
-                  if (isPickingEdge) {
-                    submitEdgeHotspotClick(h.id);
-                  } else if (!isPickingPosition) {
-                    setMovingItem({ type: "hotspot", id: h.id });
-                    setTempPosNormal({
-                      position: h.dataPosition,
-                      normal: h.dataNormal,
-                    });
-                  }
-                }}
-                className={`
-                  relative flex items-center justify-center w-2.5 h-2.5 rounded-full
-                  ${
-                    isPickingEdge ||
-                    (!isPickingPosition && effectiveShowHotspots)
-                      ? "pointer-events-auto cursor-pointer"
-                      : "pointer-events-none"
-                  }
-                  ${
-                    effectiveShowHotspots
-                      ? isMoving
-                        ? "bg-amber-300 border-2 border-amber-600 scale-150 shadow-[0_0_8px_rgba(245,158,11,0.8)] animate-pulse"
-                        : isSelectedFirst
-                          ? "bg-yellow-400 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-                          : "bg-red-500 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-                      : "bg-transparent border-0 shadow-none"
-                  }
-                `}
+                className="group relative flex items-center justify-center pointer-events-auto"
               >
-                {effectiveShowHotspots && (
-                  <span className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 py-0.5 text-[9px] leading-none text-white">
-                    {h.id}
-                  </span>
-                )}
-              </button>
+                <button
+                  type="button"
+                  aria-label={h.name ?? h.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (movingItem) {
+                      placeMovingItem(e.nativeEvent);
+                      return;
+                    }
+                    if (isPickingEdge) {
+                      handleEdgeHotspotClick(h.id);
+                    }
+                  }}
+                  className={`
+                    relative flex items-center justify-center w-2.5 h-2.5 rounded-full
+                    ${
+                      isPickingEdge ||
+                      (!isPickingPosition && effectiveShowHotspots)
+                        ? "pointer-events-auto cursor-pointer"
+                        : "pointer-events-none"
+                    }
+                    ${
+                      effectiveShowHotspots
+                        ? isMoving
+                          ? "bg-amber-300 border-2 border-amber-600 scale-150 shadow-[0_0_8px_rgba(245,158,11,0.8)] animate-pulse"
+                          : isSelectedFirst
+                            ? "bg-yellow-400 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                            : "bg-red-500 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                        : "bg-transparent border-0 shadow-none"
+                    }
+                  `}
+                >
+                  {effectiveShowHotspots && (
+                    <span className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 py-0.5 text-[9px] leading-none text-white">
+                      {h.id} {h.name && `- ${h.name}`}
+                    </span>
+                  )}
+                </button>
+
+                {effectiveShowHotspots &&
+                  !isMoving &&
+                  !isPickingEdge &&
+                  !isPickingPosition && (
+                    <HoverMenu
+                      items={[
+                        {
+                          label: "Relocate",
+                          icon: <Move size={12} />,
+                          onClick: () => {
+                            setMovingItem({ type: "hotspot", id: h.id });
+                            setTempPosNormal({
+                              position: h.dataPosition,
+                              normal: h.dataNormal,
+                            });
+                          },
+                          title: "Relocate position",
+                        },
+                        {
+                          label: "Detail",
+                          icon: <FileText size={12} />,
+                          onClick: () =>
+                            setEditingSpot({ dataId: "hotspots", rowIdx: idx }),
+                          title: "Edit details",
+                        },
+                        {
+                          label: "Remove",
+                          icon: <Trash2 size={12} />,
+                          variant: "danger",
+                          onClick: () => handleRemoveHotspot(h.id, idx),
+                          title: "Remove hotspot",
+                        },
+                      ]}
+                    />
+                  )}
+              </div>
             );
           })}
 
           {showTourspots &&
-            tourspots.map((t) => {
+            tourspots.map((t, idx) => {
               const isMoving =
                 movingItem?.type === "tourspot" && movingItem?.id === t.id;
               const [x, y, z] =
@@ -564,44 +696,78 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               const [nx, ny, nz] =
                 isMoving && tempPosNormal ? tempPosNormal.normal : t.dataNormal;
               return (
-                <button
+                <div
                   key={`tourspot-${t.id}`}
                   slot={`hotspot-tourspot-${t.id}`}
                   data-position={`${x}m ${y}m ${z}m`}
                   data-normal={`${nx}m ${ny}m ${nz}m`}
-                  aria-label={t.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (movingItem) {
-                      placeMovingItem(e.nativeEvent);
-                      return;
-                    }
-                    if (!isPickingPosition && !isPickingEdge) {
-                      setMovingItem({ type: "tourspot", id: t.id });
-                      setTempPosNormal({
-                        position: t.dataPosition,
-                        normal: t.dataNormal,
-                      });
-                    }
-                  }}
-                  className={`
-                    relative flex items-center justify-center w-3 h-3 rounded-[3px]
-                    ${
-                      !isPickingPosition && !isPickingEdge && showTourspots
-                        ? "pointer-events-auto cursor-pointer"
-                        : "pointer-events-none"
-                    }
-                    ${
-                      isMoving
-                        ? "bg-amber-300 border-2 border-amber-600 scale-150 shadow-[0_0_8px_rgba(245,158,11,0.8)] animate-pulse"
-                        : "bg-blue-500 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
-                    }
-                  `}
+                  className="group relative flex items-center justify-center pointer-events-auto"
                 >
-                  <span className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 py-0.5 text-[9px] leading-none text-white">
-                    {t.id}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    aria-label={t.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (movingItem) {
+                        placeMovingItem(e.nativeEvent);
+                        return;
+                      }
+                    }}
+                    className={`
+                      relative flex items-center justify-center w-3 h-3 rounded-[3px]
+                      ${
+                        !isPickingPosition && !isPickingEdge && showTourspots
+                          ? "pointer-events-auto cursor-pointer"
+                          : "pointer-events-none"
+                      }
+                      ${
+                        isMoving
+                          ? "bg-amber-300 border-2 border-amber-600 scale-150 shadow-[0_0_8px_rgba(245,158,11,0.8)] animate-pulse"
+                          : "bg-blue-500 border-2 border-white shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                      }
+                    `}
+                  >
+                    <span className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 py-0.5 text-[9px] leading-none text-white">
+                      {t.id}
+                    </span>
+                  </button>
+
+                  {showTourspots &&
+                    !isMoving &&
+                    !isPickingEdge &&
+                    !isPickingPosition && (
+                      <HoverMenu
+                        items={[
+                          {
+                            label: "Relocate",
+                            icon: <Move size={12} />,
+                            onClick: () => {
+                              setMovingItem({ type: "tourspot", id: t.id });
+                              setTempPosNormal({
+                                position: t.dataPosition,
+                                normal: t.dataNormal,
+                              });
+                            },
+                            title: "Relocate position",
+                          },
+                          // {
+                          //   label: "Detail",
+                          //   icon: <FileText size={12} />,
+                          //   onClick: () =>
+                          //     setEditingSpot({ dataId: "tourspots", rowIdx: idx }),
+                          //   title: "Edit details",
+                          // },
+                          {
+                            label: "Remove",
+                            icon: <Trash2 size={12} />,
+                            variant: "danger",
+                            onClick: () => handleRemoveTourspot(t.id, idx),
+                            title: "Remove tourspot",
+                          },
+                        ]}
+                      />
+                    )}
+                </div>
               );
             })}
 
@@ -627,7 +793,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           )}
         </model-viewer>
 
-        {showEdges && lines.length > 0 && (
+        {effectiveShowEdges && lines.length > 0 && (
           <svg
             className="pointer-events-none absolute inset-0"
             width="100%"
@@ -646,6 +812,13 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             ))}
           </svg>
         )}
+
+        <EditRowDialog
+          dataId={editingSpot?.dataId ?? "hotspots"}
+          rowIdx={editingSpot?.rowIdx ?? null}
+          isOpen={editingSpot !== null}
+          onClose={() => setEditingSpot(null)}
+        />
       </div>
     );
   },
