@@ -1,9 +1,9 @@
 /**
  * Converts a non-negative integer index into an alphabetical string with at least 2 characters.
  * Sequence:
- * 0 -> "aa", 1 -> "ab", ..., 25 -> "az",
- * 26 -> "ba", ..., 675 -> "zz",
- * 676 -> "aaa", ..., etc.
+ * 0 -> "AA", 1 -> "AB", ..., 25 -> "AZ",
+ * 26 -> "BA", ..., 675 -> "ZZ",
+ * 676 -> "AAA", ..., etc.
  */
 export function indexToAlpha(index: number): string {
   let len = 2;
@@ -20,7 +20,7 @@ export function indexToAlpha(index: number): string {
   for (let i = len - 1; i >= 0; i--) {
     const power = Math.pow(26, i);
     const charIndex = Math.floor(rem / power);
-    result += String.fromCharCode(97 + charIndex);
+    result += String.fromCharCode(65 + charIndex);
     rem %= power;
   }
   return result;
@@ -31,13 +31,13 @@ export function indexToAlpha(index: number): string {
  * with any ID in the provided list of existing IDs.
  *
  * @param existingIds List of existing IDs to check against for collisions.
- * @returns A unique alphabetical string ID (e.g. "aa", "ab", "ac", ...).
+ * @returns A unique alphabetical string ID (e.g. "AA", "AB", "AC", ...).
  */
 export function genId(existingIds: (string | number | undefined | null)[]): string {
   const existingSet = new Set(
     (existingIds || [])
       .filter((id) => id !== undefined && id !== null && String(id).trim() !== "")
-      .map((id) => String(id).trim().toLowerCase())
+      .map((id) => String(id).trim().toUpperCase())
   );
 
   let idx = 0;
