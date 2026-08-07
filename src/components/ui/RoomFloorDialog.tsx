@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { X } from "lucide-react";
-import { Room, CATEGORY_COLORS } from "../../lib/types";
+import { X, Trash2 } from "lucide-react";
+import { Room, getCategoryColor } from "../../lib/types";
 import { useData } from "../../contexts/dataContext";
 import Button from "./Button";
 
@@ -28,58 +28,96 @@ export default function RoomFloorDialog({
   useEffect(() => {
     if (room) {
       const b = String(room.belongsTo ?? "").trim();
-      const f = String(room.floor ?? "").trim();
       setBuilding(b);
-      setFloor(f);
       setSelectedRoomId(String(room.id));
-      if (room.cols) {
-        setColsFrom(String(room.cols[0]));
-        setColsTo(String(room.cols[1]));
+
+      const hasCols =
+        Array.isArray(room.cols) &&
+        room.cols.length >= 2 &&
+        Number(room.cols[0]) > 0 &&
+        Number(room.cols[1]) > 0;
+
+      const hasRows =
+        Array.isArray(room.rows) &&
+        room.rows.length >= 2 &&
+        Number(room.rows[0]) > 0 &&
+        Number(room.rows[1]) > 0;
+
+      const currentFloor =
+        room.floor !== undefined &&
+        room.floor !== null &&
+        String(room.floor).trim() !== ""
+          ? String(room.floor).trim()
+          : "";
+
+      // If room has undefined rows/cols, default floor to 1
+      const f =
+        !hasCols || !hasRows ? currentFloor || "1" : currentFloor || "1";
+      setFloor(f);
+
+      if (hasCols) {
+        const cFromStr = String(room.cols![0]);
+        const cToStr = String(room.cols![1]);
+        setColsFrom(cFromStr);
+        setColsTo(cToStr);
+        lastValidColsFrom.current = cFromStr;
+        lastValidColsTo.current = cToStr;
       } else {
-        setColsFrom("");
-        setColsTo("");
+        setColsFrom("1");
+        setColsTo("1");
+        lastValidColsFrom.current = "1";
+        lastValidColsTo.current = "1";
       }
-      if (room.rows) {
-        setRowsFrom(String(room.rows[0]));
-        setRowsTo(String(room.rows[1]));
+
+      if (hasRows) {
+        const rFromStr = String(room.rows![0]);
+        const rToStr = String(room.rows![1]);
+        setRowsFrom(rFromStr);
+        setRowsTo(rToStr);
+        lastValidRowsFrom.current = rFromStr;
+        lastValidRowsTo.current = rToStr;
       } else {
-        setRowsFrom("");
-        setRowsTo("");
+        setRowsFrom("1");
+        setRowsTo("1");
+        lastValidRowsFrom.current = "1";
+        lastValidRowsTo.current = "1";
       }
     }
   }, [room]);
 
-  const filteredRooms = useMemo(() => {
-    if (!building.trim() || !floor.trim()) return [];
-    const b = building.trim().toLowerCase();
-    const f = floor.trim();
-    return rooms.data.filter((r) => {
-      const matchBuilding =
-        String(r.belongsTo ?? "")
-          .trim()
-          .toLowerCase() === b;
-      const matchFloor = String(r.floor ?? "").trim() === f;
-      return matchBuilding && matchFloor;
-    });
-  }, [rooms.data, building, floor]);
-
   const matchedRoom = useMemo(() => {
-    if (!selectedRoomId.trim()) return null;
+    if (!selectedRoomId.trim()) return room;
     const rId = selectedRoomId.trim();
-    const b = building.trim().toLowerCase();
-    const f = floor.trim();
-
     return (
       rooms.data.find(
-        (r) =>
-          (String(r.id) === rId || r.id === parseInt(rId, 10)) &&
+        (r) => String(r.id) === rId || r.id === parseInt(rId, 10),
+      ) || room
+    );
+  }, [rooms.data, selectedRoomId, room]);
+
+  const filteredRooms = useMemo(() => {
+    const b = building.trim().toLowerCase();
+    const f = floor.trim();
+    let list: Room[] = [];
+    if (b || f) {
+      list = rooms.data.filter((r) => {
+        const matchBuilding =
+          !b ||
           String(r.belongsTo ?? "")
             .trim()
-            .toLowerCase() === b &&
-          String(r.floor ?? "").trim() === f,
-      ) || null
-    );
-  }, [rooms.data, building, floor, selectedRoomId]);
+            .toLowerCase() === b;
+        const matchFloor = !f || String(r.floor ?? "").trim() === f;
+        return matchBuilding && matchFloor;
+      });
+    } else {
+      list = [...rooms.data];
+    }
+    const current = matchedRoom || room;
+    if (current && !list.some((r) => String(r.id) === String(current.id))) {
+      list.push(current);
+    }
+    return list;
+  }, [rooms.data, building, floor, matchedRoom, room]);
 
   const lastValidColsFrom = useRef<string>("");
   const lastValidColsTo = useRef<string>("");
@@ -88,7 +126,12 @@ export default function RoomFloorDialog({
 
   useEffect(() => {
     if (matchedRoom) {
-      if (matchedRoom.cols) {
+      if (
+        matchedRoom.cols &&
+        matchedRoom.cols.length >= 2 &&
+        Number(matchedRoom.cols[0]) > 0 &&
+        Number(matchedRoom.cols[1]) > 0
+      ) {
         const cFromStr = String(matchedRoom.cols[0]);
         const cToStr = String(matchedRoom.cols[1]);
         setColsFrom(cFromStr);
@@ -96,7 +139,12 @@ export default function RoomFloorDialog({
         lastValidColsFrom.current = cFromStr;
         lastValidColsTo.current = cToStr;
       }
-      if (matchedRoom.rows) {
+      if (
+        matchedRoom.rows &&
+        matchedRoom.rows.length >= 2 &&
+        Number(matchedRoom.rows[0]) > 0 &&
+        Number(matchedRoom.rows[1]) > 0
+      ) {
         const rFromStr = String(matchedRoom.rows[0]);
         const rToStr = String(matchedRoom.rows[1]);
         setRowsFrom(rFromStr);
@@ -217,73 +265,64 @@ export default function RoomFloorDialog({
     return null;
   }, [rowsFrom, rowsTo]);
 
-  // Auto-update matched room's cols & rows live as inputs change (online preview)
-  useEffect(() => {
-    if (!matchedRoom) return;
-
-    const roomIdx = rooms.data.findIndex((r) => r.id === matchedRoom.id);
-    if (roomIdx < 0) return;
-
-    const currentCols = matchedRoom.cols ?? [0, 0];
-    const currentRows = matchedRoom.rows ?? [0, 0];
-
-    const fieldsToUpdate: Record<string, any> = {};
-
-    if (
-      previewCols &&
-      (previewCols[0] !== currentCols[0] || previewCols[1] !== currentCols[1])
-    ) {
-      fieldsToUpdate.cols = previewCols;
-    }
-
-    if (
-      previewRows &&
-      (previewRows[0] !== currentRows[0] || previewRows[1] !== currentRows[1])
-    ) {
-      fieldsToUpdate.rows = previewRows;
-    }
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      rooms.editRowFields?.(roomIdx, fieldsToUpdate);
-    }
-  }, [previewCols, previewRows, matchedRoom, rooms]);
+  const hasValidCoords = (
+    cols?: [number, number] | null,
+    rows?: [number, number] | null,
+  ): boolean => {
+    return Boolean(
+      cols &&
+      rows &&
+      Array.isArray(cols) &&
+      Array.isArray(rows) &&
+      cols.length >= 2 &&
+      rows.length >= 2 &&
+      Number(cols[0]) > 0 &&
+      Number(cols[1]) >= Number(cols[0]) &&
+      Number(rows[0]) > 0 &&
+      Number(rows[1]) >= Number(rows[0]),
+    );
+  };
 
   const previewMatchesExistingRoom = useMemo(() => {
     if (!previewCols || !previewRows) return false;
-    return filteredRooms.some(
-      (r) =>
+    return filteredRooms.some((r) => {
+      const isTarget = Boolean(
+        (matchedRoom && String(matchedRoom.id) === String(r.id)) ||
+        (room && String(room.id) === String(r.id)),
+      );
+      if (isTarget) return false;
+      return (
         r.cols?.[0] === previewCols[0] &&
         r.cols?.[1] === previewCols[1] &&
         r.rows?.[0] === previewRows[0] &&
-        r.rows?.[1] === previewRows[1],
-    );
-  }, [filteredRooms, previewCols, previewRows]);
+        r.rows?.[1] === previewRows[1]
+      );
+    });
+  }, [filteredRooms, previewCols, previewRows, matchedRoom, room]);
 
   const { maxRow, maxCol } = useMemo(() => {
     let maxR = 1;
     let maxC = 1;
 
     for (const r of filteredRooms) {
-      const isTarget = matchedRoom?.id === r.id;
-      const rCols = isTarget && previewCols ? previewCols : r.cols;
-      const rRows = isTarget && previewRows ? previewRows : r.rows;
-      if (rRows?.[1]) maxR = Math.max(maxR, rRows[1]);
-      if (rCols?.[1]) maxC = Math.max(maxC, rCols[1]);
+      const isTarget = Boolean(
+        (matchedRoom && String(matchedRoom.id) === String(r.id)) ||
+        (room && String(room.id) === String(r.id)),
+      );
+      if (isTarget) {
+        if (previewRows?.[1]) maxR = Math.max(maxR, previewRows[1]);
+        if (previewCols?.[1]) maxC = Math.max(maxC, previewCols[1]);
+      } else if (hasValidCoords(r.cols, r.rows)) {
+        if (r.rows?.[1]) maxR = Math.max(maxR, r.rows[1]);
+        if (r.cols?.[1]) maxC = Math.max(maxC, r.cols[1]);
+      }
     }
 
-    if (!matchedRoom && !previewMatchesExistingRoom) {
-      if (previewRows) maxR = Math.max(maxR, previewRows[1]);
-      if (previewCols) maxC = Math.max(maxC, previewCols[1]);
-    }
+    if (previewRows?.[1]) maxR = Math.max(maxR, previewRows[1]);
+    if (previewCols?.[1]) maxC = Math.max(maxC, previewCols[1]);
 
-    return { maxRow: maxR, maxCol: maxC };
-  }, [
-    filteredRooms,
-    matchedRoom,
-    previewRows,
-    previewCols,
-    previewMatchesExistingRoom,
-  ]);
+    return { maxRow: Math.max(1, maxR), maxCol: Math.max(1, maxC) };
+  }, [filteredRooms, matchedRoom, room, previewRows, previewCols]);
 
   const CELL_SIZE = useMemo(() => {
     const availableWidth = 700;
@@ -299,14 +338,63 @@ export default function RoomFloorDialog({
 
   const handleSelectRoom = (r: Room) => {
     setSelectedRoomId(String(r.id));
-    if (r.cols) {
-      setColsFrom(String(r.cols[0]));
-      setColsTo(String(r.cols[1]));
+    const hasCols =
+      Array.isArray(r.cols) &&
+      r.cols.length >= 2 &&
+      Number(r.cols[0]) > 0 &&
+      Number(r.cols[1]) > 0;
+    if (hasCols) {
+      const cFromStr = String(r.cols![0]);
+      const cToStr = String(r.cols![1]);
+      setColsFrom(cFromStr);
+      setColsTo(cToStr);
+      lastValidColsFrom.current = cFromStr;
+      lastValidColsTo.current = cToStr;
+    } else {
+      setColsFrom("1");
+      setColsTo("1");
+      lastValidColsFrom.current = "1";
+      lastValidColsTo.current = "1";
     }
-    if (r.rows) {
-      setRowsFrom(String(r.rows[0]));
-      setRowsTo(String(r.rows[1]));
+
+    const hasRows =
+      Array.isArray(r.rows) &&
+      r.rows.length >= 2 &&
+      Number(r.rows[0]) > 0 &&
+      Number(r.rows[1]) > 0;
+    if (hasRows) {
+      const rFromStr = String(r.rows![0]);
+      const rToStr = String(r.rows![1]);
+      setRowsFrom(rFromStr);
+      setRowsTo(rToStr);
+      lastValidRowsFrom.current = rFromStr;
+      lastValidRowsTo.current = rToStr;
+    } else {
+      setRowsFrom("1");
+      setRowsTo("1");
+      lastValidRowsFrom.current = "1";
+      lastValidRowsTo.current = "1";
     }
+
+    const currentFloor =
+      r.floor !== undefined && r.floor !== null && String(r.floor).trim() !== ""
+        ? String(r.floor).trim()
+        : "";
+    const f = !hasCols || !hasRows ? currentFloor || "1" : currentFloor || "1";
+    setFloor(f);
+  };
+
+  const handleRemoveCoords = () => {
+    if (!matchedRoom) return;
+    const roomIdx = rooms.data.findIndex((r) => r.id === matchedRoom.id);
+    if (roomIdx >= 0) {
+      rooms.editRowFields?.(roomIdx, {
+        cols: undefined,
+        rows: undefined,
+        floor: undefined,
+      });
+    }
+    onClose();
   };
 
   const handleSave = () => {
@@ -329,6 +417,7 @@ export default function RoomFloorDialog({
         rooms.editRowFields?.(roomIdx, {
           cols: [cFrom, cTo],
           rows: [rFrom, rTo],
+          floor: parseInt(floor, 10),
         });
       }
     }
@@ -363,6 +452,15 @@ export default function RoomFloorDialog({
         {/* Adjust Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3 text-xs font-medium text-slate-700">
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold">Floor:</span>
+              <input
+                type="text"
+                readOnly
+                value={floor}
+                className="w-12 rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-center text-xs text-slate-600 cursor-not-allowed select-none outline-none"
+              />
+            </div>
             <div className="flex items-center gap-1.5">
               <span className="text-slate-500 font-semibold">cols:</span>
               <input
@@ -401,6 +499,13 @@ export default function RoomFloorDialog({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="danger"
+              icon={<Trash2 size={13} />}
+              onClick={handleRemoveCoords}
+            >
+              Remove from map
+            </Button>
             <Button variant="primary" onClick={handleSave}>
               OK
             </Button>
@@ -439,9 +544,22 @@ export default function RoomFloorDialog({
                   </div>
                 )}
               {filteredRooms.map((r) => {
-                const isTarget = matchedRoom?.id === r.id;
+                const isTarget = Boolean(
+                  (matchedRoom && String(matchedRoom.id) === String(r.id)) ||
+                  (room && String(room.id) === String(r.id)),
+                );
+
+                // Non-selected rooms without rows/cols should not be rendered on the grid
+                if (!isTarget && !hasValidCoords(r.cols, r.rows)) {
+                  return null;
+                }
+
                 const rCols = isTarget && previewCols ? previewCols : r.cols;
                 const rRows = isTarget && previewRows ? previewRows : r.rows;
+                if (!rCols || !rRows) return null;
+
+                const colorClass = getCategoryColor(r.category);
+
                 return (
                   <button
                     key={r.id}
@@ -463,25 +581,23 @@ export default function RoomFloorDialog({
                       cursor-pointer
                       ${
                         isTarget
-                          ? "border-2 border-sky-600 ring-2 ring-sky-300"
+                          ? "border-2 border-sky-600 ring-2 ring-sky-300 shadow-sm font-bold"
                           : r.hasEvent
                             ? "border-2 border-green-500"
                             : "border border-slate-200/50"
                       }
-                      ${
-                        (CATEGORY_COLORS as Record<string, string>)[
-                          r.category
-                        ] ?? "bg-slate-100 text-slate-700"
-                      }
+                      ${colorClass}
                     `}
                     style={{
-                      gridRowStart: rRows?.[0] ?? "auto",
-                      gridRowEnd: rRows ? rRows[1] + 1 : "auto",
-                      gridColumnStart: rCols?.[0] ?? "auto",
-                      gridColumnEnd: rCols ? rCols[1] + 1 : "auto",
+                      gridRowStart: rRows[0],
+                      gridRowEnd: rRows[1] + 1,
+                      gridColumnStart: rCols[0],
+                      gridColumnEnd: rCols[1] + 1,
                     }}
                   >
-                    <span className="line-clamp-3">{r.name}</span>
+                    <span className="line-clamp-3">
+                      {r.name || `Room ${r.id}`}
+                    </span>
                   </button>
                 );
               })}

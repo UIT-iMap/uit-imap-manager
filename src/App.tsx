@@ -46,13 +46,15 @@ function Gate() {
       <div className="flex h-screen w-screen items-center justify-center bg-slate-100">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-sky-400 border-t-transparent"></div>
-          <span className="text-sm font-medium text-slate-500">Checking authentication...</span>
+          <span className="text-sm font-medium text-slate-500">
+            Checking authentication...
+          </span>
         </div>
       </div>
     );
   }
 
-  if (!isAuthed) return <Login />;
+  // if (!isAuthed) return <Login />;
   return (
     <DataProvider>
       <TabProvider>

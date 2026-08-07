@@ -20,7 +20,7 @@ export default function HoverMenu({ items, children, className }: HoverMenuProps
   return (
     <div
       className={cn(
-        "absolute bottom-full pb-2 hidden group-hover:flex flex-col items-center z-30 pointer-events-auto",
+        "absolute bottom-full pb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-auto",
         className,
       )}
     >

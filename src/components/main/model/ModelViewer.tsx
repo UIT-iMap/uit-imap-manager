@@ -587,6 +587,28 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             cursor: isPickingPosition || movingItem ? "crosshair" : undefined,
           }}
         >
+          {/* Layer 3: Edge lines (SVG) - rendered behind hotspots/tourspots and hover menu */}
+          {effectiveShowEdges && lines.length > 0 && (
+            <svg
+              className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+              width="100%"
+              height="100%"
+            >
+              {lines.map((l) => (
+                <line
+                  key={l.key}
+                  x1={l.x1}
+                  y1={l.y1}
+                  x2={l.x2}
+                  y2={l.y2}
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                />
+              ))}
+            </svg>
+          )}
+
+          {/* Layer 2: Hotspots (with Layer 1: HoverMenu) */}
           {hotspots.map((h, idx) => {
             // Keep edge endpoints mounted (invisibly) so queryHotspot can find them
             const neededForEdges =
@@ -607,7 +629,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
                 slot={`hotspot-${h.id}`}
                 data-position={`${x}m ${y}m ${z}m`}
                 data-normal={`${nx}m ${ny}m ${nz}m`}
-                className="group relative flex items-center justify-center pointer-events-auto"
+                className="group relative z-20 flex items-center justify-center pointer-events-auto hover:z-50 focus-within:z-50"
               >
                 <button
                   type="button"
@@ -623,7 +645,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
                     }
                   }}
                   className={`
-                    relative flex items-center justify-center w-2.5 h-2.5 rounded-full
+                    relative z-20 flex items-center justify-center w-2.5 h-2.5 rounded-full
                     ${
                       isPickingEdge ||
                       (!isPickingPosition && effectiveShowHotspots)
@@ -687,6 +709,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             );
           })}
 
+          {/* Layer 2: Tourspots (with Layer 1: HoverMenu) */}
           {showTourspots &&
             tourspots.map((t, idx) => {
               const isMoving =
@@ -703,7 +726,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
                   slot={`hotspot-tourspot-${t.id}`}
                   data-position={`${x}m ${y}m ${z}m`}
                   data-normal={`${nx}m ${ny}m ${nz}m`}
-                  className="group relative flex items-center justify-center pointer-events-auto"
+                  className="group relative z-20 flex items-center justify-center pointer-events-auto hover:z-50 focus-within:z-50"
                 >
                   <button
                     type="button"
@@ -716,7 +739,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
                       }
                     }}
                     className={`
-                      relative flex items-center justify-center w-3 h-3 rounded-[3px]
+                      relative z-20 flex items-center justify-center w-3 h-3 rounded-[3px]
                       ${
                         !isPickingPosition && !isPickingEdge && showTourspots
                           ? "pointer-events-auto cursor-pointer"
@@ -780,7 +803,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               data-position={`${tempPosNormal.position[0]}m ${tempPosNormal.position[1]}m ${tempPosNormal.position[2]}m`}
               data-normal={`${tempPosNormal.normal[0]}m ${tempPosNormal.normal[1]}m ${tempPosNormal.normal[2]}m`}
               className={`
-                pointer-events-none relative flex items-center justify-center opacity-75 animate-pulse scale-110
+                pointer-events-none relative z-20 flex items-center justify-center opacity-75 animate-pulse scale-110
                 ${
                   pickMode === "hotspot"
                     ? "w-2.5 h-2.5 rounded-full bg-red-400 border-2 border-white shadow-[0_0_8px_rgba(239,68,68,0.8)]"
@@ -794,26 +817,6 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             </button>
           )}
         </model-viewer>
-
-        {effectiveShowEdges && lines.length > 0 && (
-          <svg
-            className="pointer-events-none absolute inset-0"
-            width="100%"
-            height="100%"
-          >
-            {lines.map((l) => (
-              <line
-                key={l.key}
-                x1={l.x1}
-                y1={l.y1}
-                x2={l.x2}
-                y2={l.y2}
-                stroke="#22c55e"
-                strokeWidth={2}
-              />
-            ))}
-          </svg>
-        )}
 
         <EditRowDialog
           dataId={editingSpot?.dataId ?? "hotspots"}

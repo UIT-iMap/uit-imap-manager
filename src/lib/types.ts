@@ -45,6 +45,36 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   tech: "bg-orange-100 text-orange-700",
 };
 
+export const DEFAULT_CATEGORY_COLOR = "bg-slate-100 text-slate-700";
+
+export const CATEGORY_FALLBACK_COLORS: string[] = [
+  "bg-sky-100 text-sky-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-violet-100 text-violet-700",
+  "bg-pink-100 text-pink-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-lime-100 text-lime-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+  "bg-yellow-100 text-yellow-700",
+  "bg-slate-200 text-slate-700",
+];
+
+export function getCategoryColor(category?: string | null): string {
+  if (!category) return DEFAULT_CATEGORY_COLOR;
+  const key = String(category).trim().toLowerCase() as Category;
+  if (key in CATEGORY_COLORS) {
+    return CATEGORY_COLORS[key];
+  }
+  let hash = 0;
+  const str = String(category);
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % CATEGORY_FALLBACK_COLORS.length;
+  return CATEGORY_FALLBACK_COLORS[index];
+}
+
 export const CATEGORY_LABELS: Record<Category, string> = {
   classroom: "Phòng học",
   computer_room: "Phòng máy",

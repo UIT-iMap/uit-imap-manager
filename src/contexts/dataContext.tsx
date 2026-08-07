@@ -236,7 +236,12 @@ function useSlice<T = any>(
     (attribute: string, rowIdx: number, newValue: any) => {
       const target = dataRef.current[rowIdx];
       if (!target) return;
-      const updated = { ...dataRef.current[rowIdx], [attribute]: newValue };
+      const updated: any = { ...dataRef.current[rowIdx] };
+      if (newValue === undefined) {
+        delete updated[attribute];
+      } else {
+        updated[attribute] = newValue;
+      }
       const next = [...dataRef.current];
       next[rowIdx] = updated;
       handleMutation(next);
@@ -248,7 +253,14 @@ function useSlice<T = any>(
     (rowIdx: number, fields: Record<string, any>) => {
       const target = dataRef.current[rowIdx];
       if (!target) return;
-      const updated = { ...dataRef.current[rowIdx], ...fields };
+      const updated: any = { ...dataRef.current[rowIdx] };
+      for (const [key, val] of Object.entries(fields)) {
+        if (val === undefined) {
+          delete updated[key];
+        } else {
+          updated[key] = val;
+        }
+      }
       const next = [...dataRef.current];
       next[rowIdx] = updated;
       handleMutation(next);
