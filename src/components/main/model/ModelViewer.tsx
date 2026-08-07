@@ -14,6 +14,7 @@ import HoverMenu from "../../ui/HoverMenu";
 import EditRowDialog from "../../ui/EditRowDialog";
 import type { Hotspot } from "../../../lib/types";
 import { API_BASE_URL } from "../../../lib/apiConfig";
+import { genId } from "../../../lib/utils/genId";
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -461,7 +462,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         ];
 
         if (pickMode === "hotspot") {
-          submitHotspotPick(dataPosition, dataNormal);
+          const defaultId = genId(hotspots.map((h) => h.id));
+          submitHotspotPick(dataPosition, dataNormal, defaultId);
         } else {
           if (tourspotSceneId) {
             addTourspotRow?.({

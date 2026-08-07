@@ -47,6 +47,7 @@ interface ModelContextValue {
   submitHotspotPick: (
     dataPosition: [number, number, number],
     dataNormal: [number, number, number],
+    initialId?: string,
   ) => void;
   /** called by ModelViewer once the user clicks a point on the model while picking a tourspot */
   submitTourspotPick: (
@@ -94,11 +95,16 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     (
       dataPosition: [number, number, number],
       dataNormal: [number, number, number],
+      initialId?: string,
     ) => {
       setPendingRow({
         key: `hotspots-${Date.now()}`,
         dataId: "hotspots",
-        initialValues: { dataPosition, dataNormal },
+        initialValues: {
+          ...(initialId ? { id: initialId } : {}),
+          dataPosition,
+          dataNormal,
+        },
       });
       setPickMode(null);
     },

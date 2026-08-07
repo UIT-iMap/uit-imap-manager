@@ -22,6 +22,7 @@ import type {
 import { CATEGORY_VALUES } from "../lib/types";
 import { httpClient } from "../lib/httpClient";
 import { xyzArrRule, idRule, xyArrRule } from "../lib/utils/prototypes";
+import { genId } from "../lib/utils/genId";
 import { useUser } from "./userContext";
 
 // ==================== Table rule definitions ====================
@@ -120,6 +121,7 @@ export interface DataContextValue extends Record<DataId, DataSlice> {
   setAutoSave: (v: boolean) => void;
   hasUnsavedChanges: boolean;
   setHasUnsavedChanges: (v: boolean) => void;
+  generateId: (id: DataId) => string;
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined);
@@ -390,6 +392,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
   }, [autoSave, hasUnsavedChanges]);
 
+  const generateId = useCallback(
+    (id: DataId) => {
+      const slice = slices[id];
+      if (!slice) return genId([]);
+      const existingIds = slice.data.map((r: any) => r[slice.rowIdKey]);
+      return genId(existingIds);
+    },
+    [slices],
+  );
+
   const contextValue = useMemo<DataContextValue>(
     () => ({
       ...slices,
@@ -399,6 +411,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setAutoSave,
       hasUnsavedChanges,
       setHasUnsavedChanges,
+      generateId,
     }),
     [
       slices,
@@ -408,6 +421,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setAutoSave,
       hasUnsavedChanges,
       setHasUnsavedChanges,
+      generateId,
     ],
   );
 

@@ -9,6 +9,7 @@ import {
   isUniqueValue,
   isValidFixedArray,
 } from "../../lib/utils/validator";
+import { genId } from "../../lib/utils/genId";
 
 interface NewRowDialogProps {
   dataId: DataId;
@@ -43,7 +44,12 @@ export default function NewRowDialog({
 
   useEffect(() => {
     if (isOpen) {
-      setRow(emptyRow(initialValues));
+      const baseRow = emptyRow(initialValues);
+      if (!baseRow.id && (dataId === "hotspots" || dataId === "rooms")) {
+        const existingIds = slice?.data?.map((r: any) => r[slice?.rowIdKey]) ?? [];
+        baseRow.id = genId(existingIds);
+      }
+      setRow(baseRow);
       setErrors({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
