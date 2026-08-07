@@ -76,6 +76,7 @@ export interface Room {
   name: string;
   floor?: number;
   belongsTo: string; // Hotspot.id
+  gates: string[]; // Hotspot.id(s)
   category: Category;
   description?: string;
   rows?: [number, number];
@@ -124,7 +125,6 @@ export interface MarzipanoScene {
   scene: any;
   view: any;
 }
-
 
 export interface Tourspot {
   id: string;

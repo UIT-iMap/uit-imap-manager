@@ -46,6 +46,7 @@ const roomRules: TableRule[] = [
   { name: "name", label: "Name", isMandatory: true },
   { name: "floor", label: "Floor", isMandatory: false },
   { name: "belongsTo", label: "Belongs To", isMandatory: true },
+  { name: "gates", label: "Gates", type: "arr", isMandatory: true },
   {
     name: "category",
     label: "Category",

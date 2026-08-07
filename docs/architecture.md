@@ -144,7 +144,7 @@ Tập trung tại `src/lib/types.ts` và `src/lib/types/pano.ts`:
 
 - **Domain Types**:
   - `Hotspot`: `{ id, name, description, showInDefault, dataPosition, dataNormal }`
-  - `Room`: `{ id, name, floor, belongsTo, category, description, rows, cols, hasEvent }`
+  - `Room`: `{ id, name, floor, belongsTo, gates, category, description, rows, cols, hasEvent }`
   - `Edge`: `{ first, second }`
   - `TourScene`: `{ id, name, levels, faceSize, initialViewParameters, linkHotspots, infoHotspots }`
   - `Tourspot`: `{ id, sceneId, dataPosition, dataNormal }`
