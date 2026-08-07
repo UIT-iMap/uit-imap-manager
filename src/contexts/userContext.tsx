@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "../lib/types";
 import { httpClient } from "../lib/httpClient";
 
@@ -16,27 +16,23 @@ interface UserContextValue {
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("token");
-    }
-    return null;
-  });
+  const [token, setToken] = useState<string | null>(null);
 
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== "undefined") {
-      const savedUser = localStorage.getItem("username");
-      if (savedUser) return { name: savedUser };
-    }
-    return null;
-  });
+  const [user, setUser] = useState<User | null>(null);
 
-  const [isAuthed, setIsAuthed] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return !!localStorage.getItem("token");
-    }
-    return false;
-  });
+  const [isAuthed, setIsAuthed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("username");
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   const login = async (username: string, password?: string) => {
     try {
