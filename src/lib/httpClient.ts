@@ -9,6 +9,7 @@ export interface RequestOptions {
   signal?: AbortSignal;
   timeout?: number;
   credentials?: RequestCredentials;
+  _isRetry?: boolean;
 }
 
 export class HttpError extends Error {
@@ -21,6 +22,24 @@ export class HttpError extends Error {
     super(`HTTP ${status} ${statusText} - ${url}`);
     this.name = "HttpError";
   }
+}
+
+/**
+ * Memory storage for JWT Access Token
+ */
+let memoryAccessToken: string | null = null;
+let unauthCallback: (() => void) | null = null;
+
+export function getAccessToken(): string | null {
+  return memoryAccessToken;
+}
+
+export function setAccessToken(token: string | null): void {
+  memoryAccessToken = token;
+}
+
+export function setUnauthCallback(cb: () => void): void {
+  unauthCallback = cb;
 }
 
 /**
@@ -44,19 +63,12 @@ function detectApiMode(): ApiMode {
     }
   } catch {
     // API_BASE_URL là relative path (vd "/api") -> không parse được domain tuyệt đối
-    // => coi như đang gọi thẳng server của mình
   }
   return "server";
 }
 
 const API_MODE: ApiMode = detectApiMode();
 
-/**
- * Khi ở chế độ jsdelivr (CDN tĩnh), gắn extension vào cuối đường dẫn API nếu chưa có:
- * - Route là "map" -> ".glb"
- * - Route thuộc "tiles" -> ".jpg"
- * - Còn lại -> ".json"
- */
 function formatJsdelivrRoute(route: string): string {
   if (API_MODE !== "jsdelivr") return route;
 
@@ -105,25 +117,15 @@ function buildUrl(route: string, params?: RequestOptions["params"]): string {
   return url.toString();
 }
 
-/**
- * Có nên tự động gắn Content-Type/Accept mặc định không?
- * - jsdelivr: chỉ phục vụ GET file tĩnh, không cần và không nên có header thừa
- *   (tránh preflight CORS / mismatch content-type khi trả file không phải JSON).
- * - server: bắt buộc có header cho mọi method, TRỪ PUT
- *   (PUT dùng để upload trực tiếp lên presigned URL, header lạ sẽ phá signature).
- */
 function shouldAttachDefaultHeaders(method: HttpMethod): boolean {
   if (API_MODE === "jsdelivr") return false;
   if (method === "PUT") return false;
   return true;
 }
 
-/**
- * Credentials mặc định theo mode, caller vẫn override được qua options.credentials.
- */
 function resolveCredentials(explicit?: RequestCredentials): RequestCredentials {
   if (explicit) return explicit;
-  return API_MODE === "jsdelivr" ? "omit" : "same-origin";
+  return API_MODE === "jsdelivr" ? "omit" : "include";
 }
 
 async function parseResponse<T>(res: Response): Promise<T> {
@@ -143,6 +145,23 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string | null) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+function processQueue(error: Error | null, token: string | null = null) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+}
+
 async function request<T>(
   method: HttpMethod,
   route: string,
@@ -155,6 +174,7 @@ async function request<T>(
     signal,
     timeout = 15000,
     credentials,
+    _isRetry,
   } = options;
 
   const url = buildUrl(route, params);
@@ -168,9 +188,6 @@ async function request<T>(
 
   const isFormData = body instanceof FormData;
 
-  // Header mặc định chỉ được gắn khi shouldAttachDefaultHeaders() cho phép.
-  // Header do caller truyền tay (options.headers) LUÔN được giữ, kể cả ở PUT/jsdelivr,
-  // để trường hợp đặc biệt (vd presigned PUT cần đúng 1 Content-Type cụ thể) vẫn hoạt động được.
   const finalHeaders: Record<string, string> = shouldAttachDefaultHeaders(
     method,
   )
@@ -180,6 +197,10 @@ async function request<T>(
         ...headers,
       }
     : { ...headers };
+
+  if (memoryAccessToken && !finalHeaders["Authorization"]) {
+    finalHeaders["Authorization"] = `Bearer ${memoryAccessToken}`;
+  }
 
   try {
     const res = await fetch(url, {
@@ -197,7 +218,50 @@ async function request<T>(
 
     return await parseResponse<T>(res);
   } catch (err) {
-    if (err instanceof HttpError) throw err;
+    if (err instanceof HttpError) {
+      const cleanRoute = route.startsWith('/') ? route : `/${route}`;
+      const isAuthEndpoint = cleanRoute.includes('/auth/login') || cleanRoute.includes('/auth/refresh') || cleanRoute === '/auth';
+
+      if (err.status === 401 && !_isRetry && !isAuthEndpoint) {
+        if (isRefreshing) {
+          return new Promise<string | null>((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then(() => {
+              return request<T>(method, route, { ...options, _isRetry: true });
+            })
+            .catch((qErr) => {
+              throw qErr;
+            });
+        }
+
+        isRefreshing = true;
+
+        try {
+          const refreshRes = await request<{ success: boolean; accessToken: string }>('POST', '/auth/refresh', {
+            _isRetry: true,
+          });
+
+          if (refreshRes && refreshRes.accessToken) {
+            setAccessToken(refreshRes.accessToken);
+            processQueue(null, refreshRes.accessToken);
+            isRefreshing = false;
+            return await request<T>(method, route, { ...options, _isRetry: true });
+          } else {
+            throw new Error("Failed to refresh token");
+          }
+        } catch (refreshErr: any) {
+          setAccessToken(null);
+          processQueue(refreshErr, null);
+          isRefreshing = false;
+          if (unauthCallback) unauthCallback();
+          throw err;
+        }
+      }
+
+      throw err;
+    }
+
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new HttpError(0, "Request Timeout / Aborted", null, url);
     }

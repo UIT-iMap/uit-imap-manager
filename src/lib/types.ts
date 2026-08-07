@@ -12,6 +12,7 @@ export type TabId = DataId | "model" | "guide";
 
 export interface User {
   name: string;
+  username?: string;
 }
 
 export type Edge = {

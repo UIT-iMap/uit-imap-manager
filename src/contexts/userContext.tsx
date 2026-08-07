@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "../lib/types";
-import { httpClient } from "../lib/httpClient";
+import { httpClient, setAccessToken, getAccessToken, setUnauthCallback } from "../lib/httpClient";
 
 interface UserContextValue {
   user: User | null;
@@ -9,29 +9,62 @@ interface UserContextValue {
   setToken: (token: string | null) => void;
   isAuthed: boolean;
   setIsAuthed: (v: boolean) => void;
+  isLoading: boolean;
   login: (username: string, password?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-
+  const [token, setTokenState] = useState<string | null>(getAccessToken());
   const [user, setUser] = useState<User | null>(null);
-
   const [isAuthed, setIsAuthed] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const updateToken = (newToken: string | null) => {
+    setAccessToken(newToken);
+    setTokenState(newToken);
+  };
 
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      localStorage.removeItem("token");
-      localStorage.removeItem("username");
+    setUnauthCallback(() => {
+      updateToken(null);
+      setUser(null);
+      setIsAuthed(false);
+    });
+
+    const initAuth = async () => {
+      setIsLoading(true);
+      try {
+        const res = await httpClient.post<{
+          success: boolean;
+          accessToken: string;
+          user?: { username: string; name?: string };
+        }>("/auth/refresh");
+
+        if (res && res.accessToken) {
+          updateToken(res.accessToken);
+          const userData: User = res.user
+            ? { name: res.user.name || res.user.username || "Admin", username: res.user.username }
+            : { name: "Admin" };
+          setUser(userData);
+          setIsAuthed(true);
+        } else {
+          updateToken(null);
+          setUser(null);
+          setIsAuthed(false);
+        }
+      } catch {
+        updateToken(null);
+        setUser(null);
+        setIsAuthed(false);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    initAuth();
   }, []);
 
   const login = async (username: string, password?: string) => {
@@ -39,17 +72,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const res = await httpClient.post<{
         success: boolean;
         message?: string;
+        accessToken?: string;
         token?: string;
-      }>("/auth", {
+        user?: { username: string; name?: string };
+      }>("/auth/login", {
         body: { username, password },
       });
 
-      if (res && res.token) {
-        setToken(res.token);
-        localStorage.setItem("token", res.token);
-        const newUser = { name: username || "Admin" };
-        setUser(newUser);
-        localStorage.setItem("username", username || "Admin");
+      const tokenReceived = res.accessToken || res.token;
+      if (res && tokenReceived) {
+        updateToken(tokenReceived);
+        const userData: User = res.user
+          ? { name: res.user.name || res.user.username || username || "Admin", username: res.user.username }
+          : { name: username || "Admin", username };
+        setUser(userData);
         setIsAuthed(true);
       } else {
         throw new Error(res?.message || "Authentication failed");
@@ -62,13 +98,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    setIsAuthed(false);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      localStorage.removeItem("username");
+  const logout = async () => {
+    try {
+      await httpClient.post("/auth/logout");
+    } catch {
+      // Ignore network / logout errors
+    } finally {
+      updateToken(null);
+      setUser(null);
+      setIsAuthed(false);
     }
   };
 
@@ -78,9 +116,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         user,
         setUser,
         token,
-        setToken,
+        setToken: updateToken,
         isAuthed,
         setIsAuthed,
+        isLoading,
         login,
         logout,
       }}
@@ -95,4 +134,3 @@ export function useUser() {
   if (!ctx) throw new Error("useUser must be used within UserProvider");
   return ctx;
 }
-
