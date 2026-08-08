@@ -23,6 +23,11 @@ export interface PendingRow {
   initialValues: Record<string, any>;
 }
 
+export interface CameraView {
+  orbit: { theta: number; phi: number; radius: number };
+  target: { x: number; y: number; z: number };
+}
+
 interface ModelContextValue {
   pickMode: PickMode;
   /** id of the hotspot selected as the edge's first endpoint, while pickMode === "edge" */
@@ -43,6 +48,8 @@ interface ModelContextValue {
   setShowEdges: (show: boolean) => void;
   tourspotSceneId: string | null;
   setTourspotSceneId: (id: string | null) => void;
+  cameraView: CameraView | null;
+  setCameraView: (view: CameraView | null) => void;
 
   startPicking: (mode: Exclude<PickMode, null>) => void;
   cancelPicking: () => void;
@@ -85,6 +92,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const [showEdges, setShowEdges] = useState(false);
   const [showTourspots, setShowTourspots] = useState(false);
   const [tourspotSceneId, setTourspotSceneId] = useState<string | null>(null);
+  const [cameraView, setCameraView] = useState<CameraView | null>(null);
 
   const startPicking = useCallback((mode: Exclude<PickMode, null>) => {
     setPickMode(mode);
@@ -181,6 +189,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       setShowEdges,
       tourspotSceneId,
       setTourspotSceneId,
+      cameraView,
+      setCameraView,
       startPicking,
       cancelPicking,
       submitHotspotPick,
@@ -198,6 +208,7 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       showTourspots,
       showEdges,
       tourspotSceneId,
+      cameraView,
       startPicking,
       cancelPicking,
       submitHotspotPick,

@@ -43,6 +43,9 @@ type CustomModelViewer = HTMLElement & {
     pixelX: number,
     pixelY: number,
   ) => { position: Vec3; normal: Vec3 } | null;
+
+  getCameraOrbit: () => { theta: number; phi: number; radius: number };
+  getCameraTarget: () => { x: number; y: number; z: number };
 };
 
 export interface ModelViewerHandle {
@@ -99,6 +102,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       showEdges,
       setShowEdges,
       tourspotSceneId,
+      cameraView,
+      setCameraView,
     } = useModel();
 
     const mvRef = useRef<CustomModelViewer | null>(null);
@@ -127,6 +132,45 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         setShowTourspots(true);
       }
     }, [isPickingEdge, pickMode, setShowHotspots, setShowEdges, setShowTourspots]);
+
+    // Restore camera view on mount/load and save camera view on unmount
+    useEffect(() => {
+      const mv = mvRef.current;
+      if (!mv) return;
+
+      const restoreView = () => {
+        if (cameraView) {
+          mv.cameraOrbit = `${cameraView.orbit.theta}rad ${cameraView.orbit.phi}rad ${cameraView.orbit.radius}m`;
+          mv.cameraTarget = `${cameraView.target.x}m ${cameraView.target.y}m ${cameraView.target.z}m`;
+          try {
+            mv.jumpCameraToGoal?.();
+          } catch {
+            // ignore
+          }
+        }
+      };
+
+      mv.addEventListener("load", restoreView);
+      restoreView();
+
+      return () => {
+        mv.removeEventListener("load", restoreView);
+        try {
+          if (
+            typeof mv.getCameraOrbit === "function" &&
+            typeof mv.getCameraTarget === "function"
+          ) {
+            const orbit = mv.getCameraOrbit();
+            const target = mv.getCameraTarget();
+            if (orbit && target) {
+              setCameraView({ orbit, target });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to save camera view:", err);
+        }
+      };
+    }, [cameraView, setCameraView]);
 
     const handleEdgeHotspotClick = useCallback(
       (clickedId: string) => {
@@ -214,6 +258,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         mv.cameraOrbit = INITIAL_ORBIT;
         mv.fieldOfView = INITIAL_FOV;
         mv.cameraTarget = "0m 0m 0m";
+        setCameraView(null);
       },
     }));
 
@@ -593,9 +638,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           tone-mapping="neutral"
           shadow-intensity="0"
           exposure="1"
-          min-camera-orbit="auto 0deg 7m"
-          max-camera-orbit="auto 88deg auto"
-          camera-orbit={INITIAL_ORBIT}
+          camera-orbit={
+            cameraView
+              ? `${cameraView.orbit.theta}rad ${cameraView.orbit.phi}rad ${cameraView.orbit.radius}m`
+              : INITIAL_ORBIT
+          }
+          camera-target={
+            cameraView
+              ? `${cameraView.target.x}m ${cameraView.target.y}m ${cameraView.target.z}m`
+              : "0m 0m 0m"
+          }
           field-of-view={INITIAL_FOV}
           interaction-prompt="none"
           style={{

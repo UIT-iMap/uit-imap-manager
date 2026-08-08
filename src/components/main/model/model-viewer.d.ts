@@ -11,6 +11,8 @@ export interface ModelViewerElement extends HTMLElement {
     worldPosition: { x: number; y: number; z: number };
   } | null;
   getBoundingClientRect(): DOMRect;
+  getCameraOrbit(): { theta: number; phi: number; radius: number };
+  getCameraTarget(): { x: number; y: number; z: number };
 }
 
 export interface ModelViewerJSX extends React.DetailedHTMLProps<
