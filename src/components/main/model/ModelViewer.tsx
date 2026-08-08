@@ -92,15 +92,17 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       setMovingItem,
       tempPosNormal,
       setTempPosNormal,
+      showHotspots,
+      setShowHotspots,
       showTourspots,
       setShowTourspots,
+      showEdges,
+      setShowEdges,
       tourspotSceneId,
     } = useModel();
 
     const mvRef = useRef<CustomModelViewer | null>(null);
 
-    const [showHotspots, setShowHotspots] = useState(false);
-    const [showEdges, setShowEdges] = useState(false);
     const [lines, setLines] = useState<EdgeLine[]>([]);
     const [editingSpot, setEditingSpot] = useState<{
       dataId: "hotspots" | "tourspots";
@@ -124,7 +126,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       } else if (pickMode === "tourspot") {
         setShowTourspots(true);
       }
-    }, [isPickingEdge, pickMode, setShowTourspots]);
+    }, [isPickingEdge, pickMode, setShowHotspots, setShowEdges, setShowTourspots]);
 
     const handleEdgeHotspotClick = useCallback(
       (clickedId: string) => {

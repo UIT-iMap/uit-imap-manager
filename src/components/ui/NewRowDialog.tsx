@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Dialog from "./Dialog";
 import FieldEditor from "./FieldEditor";
 import Button from "./Button";
@@ -41,9 +41,11 @@ export default function NewRowDialog({
     emptyRow(initialValues),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const isSubmittedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
+      isSubmittedRef.current = false;
       const baseRow = emptyRow(initialValues);
       if (!baseRow.id && (dataId === "hotspots" || dataId === "rooms")) {
         const existingIds = slice?.data?.map((r: any) => r[slice?.rowIdKey]) ?? [];
@@ -61,6 +63,13 @@ export default function NewRowDialog({
     setRow((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleDismiss = () => {
+    if (!isSubmittedRef.current) {
+      alert("Changes may not be saved");
+    }
+    onClose();
+  };
+
   const handleOk = (close: () => void) => {
     const newErrors: Record<string, string> = {};
     for (const rule of visibleRules) {
@@ -69,8 +78,16 @@ export default function NewRowDialog({
         newErrors[rule.name] = `"${rule.label ?? rule.name}" is required.`;
         continue;
       }
-      if (rule.type === "arr" && rule.fixedSize && val !== undefined) {
-        if (!isValidFixedArray(val, rule.fixedSize)) {
+      if (rule.type === "arr" && rule.fixedSize) {
+        const isEmpty =
+          val === undefined ||
+          val === null ||
+          (Array.isArray(val) && val.length === 0) ||
+          (Array.isArray(val) && val.every((v) => v === "" || v === null || v === undefined));
+
+        if (rule.isMandatory === false && isEmpty) {
+          // Allowed to be empty when non-mandatory
+        } else if (!isValidFixedArray(val, rule.fixedSize)) {
           newErrors[rule.name] =
             `"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`;
         }
@@ -86,6 +103,7 @@ export default function NewRowDialog({
       setErrors(newErrors);
       return;
     }
+    isSubmittedRef.current = true;
     slice.addRow?.(row as any);
     onSuccess?.(row as any);
     close();
@@ -95,7 +113,7 @@ export default function NewRowDialog({
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleDismiss}
       title={`Add New Row`}
       widthClass="max-w-xl"
     >
@@ -122,13 +140,7 @@ export default function NewRowDialog({
             </div>
           ))}
           <div className="flex justify-end gap-2 pt-1">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                close();
-                onClose();
-              }}
-            >
+            <Button variant="ghost" onClick={handleDismiss}>
               Cancel
             </Button>
             <Button variant="primary" onClick={() => handleOk(close)}>

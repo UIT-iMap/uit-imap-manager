@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Dialog from "./Dialog";
 import FieldEditor from "./FieldEditor";
 import Button from "./Button";
@@ -32,11 +32,15 @@ export default function EditRowDialog({
 
   const [row, setRow] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const isSubmittedRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen && targetRow) {
-      setRow({ ...targetRow });
-      setErrors({});
+    if (isOpen) {
+      isSubmittedRef.current = false;
+      if (targetRow) {
+        setRow({ ...targetRow });
+        setErrors({});
+      }
     }
   }, [isOpen, targetRow]);
 
@@ -48,6 +52,13 @@ export default function EditRowDialog({
     setRow((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleDismiss = () => {
+    if (!isSubmittedRef.current) {
+      alert("Changes may not be saved");
+    }
+    onClose();
+  };
+
   const handleOk = (close: () => void) => {
     const newErrors: Record<string, string> = {};
     for (const rule of visibleRules) {
@@ -56,8 +67,16 @@ export default function EditRowDialog({
         newErrors[rule.name] = `"${rule.label ?? rule.name}" is required.`;
         continue;
       }
-      if (rule.type === "arr" && rule.fixedSize && val !== undefined) {
-        if (!isValidFixedArray(val, rule.fixedSize)) {
+      if (rule.type === "arr" && rule.fixedSize) {
+        const isEmpty =
+          val === undefined ||
+          val === null ||
+          (Array.isArray(val) && val.length === 0) ||
+          (Array.isArray(val) && val.every((v) => v === "" || v === null || v === undefined));
+
+        if (rule.isMandatory === false && isEmpty) {
+          // Allowed to be empty when non-mandatory
+        } else if (!isValidFixedArray(val, rule.fixedSize)) {
           newErrors[rule.name] =
             `"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`;
         }
@@ -76,6 +95,7 @@ export default function EditRowDialog({
       return;
     }
 
+    isSubmittedRef.current = true;
     slice.editRowFields?.(rowIdx, row);
     onSuccess?.(row);
     close();
@@ -92,7 +112,7 @@ export default function EditRowDialog({
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleDismiss}
       title={dialogTitle}
       widthClass="max-w-xl"
     >
@@ -119,13 +139,7 @@ export default function EditRowDialog({
             </div>
           ))}
           <div className="flex justify-end gap-2 pt-1">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                close();
-                onClose();
-              }}
-            >
+            <Button variant="ghost" onClick={handleDismiss}>
               Cancel
             </Button>
             <Button variant="primary" onClick={() => handleOk(close)}>

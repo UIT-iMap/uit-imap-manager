@@ -30,7 +30,7 @@ export default function FieldEditor({ rule, value, onChange }: FieldEditorProps)
   if (type === "arr") {
     const arr: any[] = Array.isArray(value) ? value : [];
     const canAdd = !rule.fixedSize || arr.length < rule.fixedSize;
-    const canRemove = !rule.fixedSize;
+    const canRemove = !rule.fixedSize || rule.isMandatory === false;
 
     const updateItem = (idx: number, v: string) => {
       const next = [...arr];

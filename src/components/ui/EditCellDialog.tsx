@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import Dialog from "./Dialog";
 import FieldEditor from "./FieldEditor";
 import Button from "./Button";
@@ -26,8 +26,15 @@ export default function EditCellDialog({
   const [value, setValue] = useState<any>(row ? (row as any)[attribute ?? ""] : "");
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const isSubmittedRef = useRef(false);
 
   const isOpen = attribute !== null && rowIdx !== null;
+
+  useEffect(() => {
+    if (isOpen) {
+      isSubmittedRef.current = false;
+    }
+  }, [isOpen]);
 
   useMemo(() => {
     if (row && attribute) setValue((row as any)[attribute]);
@@ -38,16 +45,33 @@ export default function EditCellDialog({
 
   if (!isOpen || !rule || !row) return null;
 
+  const handleDismiss = () => {
+    if (!isSubmittedRef.current) {
+      alert("Changes may not be saved");
+    }
+    onClose();
+  };
+
   const handleOk = (close: () => void) => {
     if (rule.isMandatory !== false && !isValidMandatory(value)) {
       setError(`"${rule.label ?? rule.name}" is required.`);
       setTouched(true);
       return;
     }
-    if (rule.type === "arr" && rule.fixedSize && !isValidFixedArray(value, rule.fixedSize)) {
-      setError(`"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`);
-      setTouched(true);
-      return;
+    if (rule.type === "arr" && rule.fixedSize) {
+      const isEmpty =
+        value === undefined ||
+        value === null ||
+        (Array.isArray(value) && value.length === 0) ||
+        (Array.isArray(value) && value.every((v) => v === "" || v === null || v === undefined));
+
+      if (rule.isMandatory === false && isEmpty) {
+        // Allowed to be empty when non-mandatory
+      } else if (!isValidFixedArray(value, rule.fixedSize)) {
+        setError(`"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`);
+        setTouched(true);
+        return;
+      }
     }
     if (rule.name === slice.rowIdKey) {
       const existing = slice.data
@@ -59,6 +83,7 @@ export default function EditCellDialog({
         return;
       }
     }
+    isSubmittedRef.current = true;
     slice.editRow?.(attribute!, rowIdx!, value);
     close();
     onClose();
@@ -67,7 +92,7 @@ export default function EditCellDialog({
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleDismiss}
       title={`Edit "${rule.label ?? rule.name}"`}
     >
       {(close) => (
@@ -85,7 +110,7 @@ export default function EditCellDialog({
             )}
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" onClick={() => { close(); onClose(); }}>
+            <Button variant="ghost" onClick={handleDismiss}>
               Cancel
             </Button>
             <Button variant="primary" onClick={() => handleOk(close)}>

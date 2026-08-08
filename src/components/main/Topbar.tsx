@@ -181,6 +181,10 @@ export default function Topbar() {
     }
   };
 
+  const isModel = tab === "model";
+  const isScenes = tab === "tourScenes";
+  const slice = !isModel && tab !== "guide" ? data[tab as DataId] : null;
+
   useEffect(() => {
     if (!tourspotDropdownOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -195,11 +199,23 @@ export default function Topbar() {
     };
   }, [tourspotDropdownOpen]);
 
-  if (tab === "guide") return null;
+  useEffect(() => {
+    if (!isModel) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (pickMode || movingItem || tourspotDropdownOpen) {
+          cancelPicking();
+          setTourspotDropdownOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModel, pickMode, movingItem, tourspotDropdownOpen, cancelPicking]);
 
-  const isModel = tab === "model";
-  const isScenes = tab === "tourScenes";
-  const slice = !isModel ? data[tab as DataId] : null;
+  if (tab === "guide") return null;
 
   const handleParsed = (rows: UploadPreviewRow[]) => {
     setPreviewRows(rows);
@@ -389,22 +405,6 @@ export default function Topbar() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!isModel) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (pickMode || movingItem || tourspotDropdownOpen) {
-          cancelPicking();
-          setTourspotDropdownOpen(false);
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isModel, pickMode, movingItem, tourspotDropdownOpen, cancelPicking]);
 
   const isAnyActionActive = Boolean(
     pickMode || movingItem || tourspotDropdownOpen,

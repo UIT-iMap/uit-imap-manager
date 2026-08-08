@@ -35,8 +35,12 @@ interface ModelContextValue {
   setMovingItem: (item: { type: "hotspot" | "tourspot"; id: string } | null) => void;
   tempPosNormal: { position: [number, number, number]; normal: [number, number, number] } | null;
   setTempPosNormal: (val: { position: [number, number, number]; normal: [number, number, number] } | null) => void;
+  showHotspots: boolean;
+  setShowHotspots: (show: boolean) => void;
   showTourspots: boolean;
   setShowTourspots: (show: boolean) => void;
+  showEdges: boolean;
+  setShowEdges: (show: boolean) => void;
   tourspotSceneId: string | null;
   setTourspotSceneId: (id: string | null) => void;
 
@@ -77,6 +81,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     position: [number, number, number];
     normal: [number, number, number];
   } | null>(null);
+  const [showHotspots, setShowHotspots] = useState(false);
+  const [showEdges, setShowEdges] = useState(false);
   const [showTourspots, setShowTourspots] = useState(false);
   const [tourspotSceneId, setTourspotSceneId] = useState<string | null>(null);
 
@@ -167,8 +173,12 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       setMovingItem,
       tempPosNormal,
       setTempPosNormal,
+      showHotspots,
+      setShowHotspots,
       showTourspots,
       setShowTourspots,
+      showEdges,
+      setShowEdges,
       tourspotSceneId,
       setTourspotSceneId,
       startPicking,
@@ -184,7 +194,9 @@ export function ModelProvider({ children }: { children: ReactNode }) {
       pendingRow,
       movingItem,
       tempPosNormal,
+      showHotspots,
       showTourspots,
+      showEdges,
       tourspotSceneId,
       startPicking,
       cancelPicking,
