@@ -97,12 +97,13 @@ export interface Hotspot {
   showInDefault?: boolean;
   name?: string;
   description?: string;
+  representativeRoom?: string;
   dataPosition: [number, number, number];
   dataNormal: [number, number, number];
 }
 
 export interface Room {
-  id: number;
+  id: string;
   name: string;
   floor?: number;
   belongsTo: string; // Hotspot.id

@@ -39,7 +39,10 @@ import {
 
 // ==================== Table rule definitions ====================
 
-export function buildHotspotRules(hotspots: Hotspot[] = []): TableRule[] {
+export function buildHotspotRules(
+  hotspots: Hotspot[] = [],
+  rooms: Room[] = [],
+): TableRule[] {
   return [
     idRule("ID", [
       isValidPrimaryKey(() => hotspots.map((h) => h.id)),
@@ -53,6 +56,12 @@ export function buildHotspotRules(hotspots: Hotspot[] = []): TableRule[] {
       label: "Show In Default?",
       isMandatory: false,
       values: ["true", "false"],
+    },
+    {
+      name: "representativeRoom",
+      label: "Representative Room",
+      isMandatory: false,
+      onBlurs: [isValidForeignKey(() => rooms.map((r) => r.id))],
     },
     // xyzArrRule("dataPosition", "Position"),
     // xyzArrRule("dataNormal", "Normal"),
@@ -96,10 +105,7 @@ export function buildRoomRules(
       label: "Gates",
       type: "arr",
       isMandatory: false,
-      onBlurs: [
-        isValidForeignKey(() => hotspots.map((h) => h.id)),
-        hasGates,
-      ],
+      onBlurs: [isValidForeignKey(() => hotspots.map((h) => h.id)), hasGates],
     },
     {
       name: "category",
@@ -217,7 +223,7 @@ export function buildTransportRules(_transport: Transport[] = []): TableRule[] {
   ];
 }
 
-const hotspotRules: TableRule[] = buildHotspotRules([]);
+const hotspotRules: TableRule[] = buildHotspotRules([], []);
 const roomRules: TableRule[] = buildRoomRules([], []);
 const edgeRules: TableRule[] = buildEdgeRules([], []);
 const tourSceneRules: TableRule[] = buildTourSceneRules([]);
@@ -477,8 +483,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
 
   const hotspotRules = useMemo(
-    () => buildHotspotRules(hotspots.data),
-    [hotspots.data],
+    () => buildHotspotRules(hotspots.data, rooms.data),
+    [hotspots.data, rooms.data],
   );
   const roomRules = useMemo(
     () => buildRoomRules(rooms.data, hotspots.data),
