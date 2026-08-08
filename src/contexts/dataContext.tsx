@@ -21,72 +21,208 @@ import type {
 } from "../lib/types";
 import { CATEGORY_VALUES } from "../lib/types";
 import { httpClient } from "../lib/httpClient";
-import { xyzArrRule, idRule, xyArrRule } from "../lib/utils/prototypes";
 import { genId } from "../lib/utils/genId";
+import { idRule, xyArrRule } from "../lib/utils/prototypes";
 import { useUser } from "./userContext";
+import {
+  isValidPrimaryKey,
+  isValidForeignKey,
+  uppercase,
+  hasGates,
+  hasBelongsTo,
+  hasPosition,
+  hasBelongsHotpotName,
+  hasCategory,
+  isValidMandatory,
+  isValidFixedArray,
+} from "../lib/utils/onBlurs";
 
 // ==================== Table rule definitions ====================
 
-const hotspotRules: TableRule[] = [
-  idRule(),
-  { name: "name", label: "Name", isMandatory: false },
-  { name: "description", label: "Description", isMandatory: false },
-  {
-    name: "showInDefault",
-    label: "Show In Default?",
-    isMandatory: false,
-    values: ["true", "false"],
-  },
-  // xyzArrRule("dataPosition", "Position"),
-  // xyzArrRule("dataNormal", "Normal"),
-];
+export function buildHotspotRules(hotspots: Hotspot[] = []): TableRule[] {
+  return [
+    idRule("ID", [
+      isValidPrimaryKey(() => hotspots.map((h) => h.id)),
+      uppercase,
+      isValidMandatory,
+    ]),
+    { name: "name", label: "Name", isMandatory: false },
+    { name: "description", label: "Description", isMandatory: false },
+    {
+      name: "showInDefault",
+      label: "Show In Default?",
+      isMandatory: false,
+      values: ["true", "false"],
+    },
+    // xyzArrRule("dataPosition", "Position"),
+    // xyzArrRule("dataNormal", "Normal"),
+  ];
+}
 
-const roomRules: TableRule[] = [
-  idRule(),
-  { name: "name", label: "Name", isMandatory: true },
-  { name: "floor", label: "Floor", isMandatory: false },
-  { name: "belongsTo", label: "Belongs To", isMandatory: false },
-  { name: "gates", label: "Gates", type: "arr", isMandatory: false },
-  {
-    name: "category",
-    label: "Category",
-    isMandatory: false,
-    values: CATEGORY_VALUES,
-  },
-  { name: "description", label: "Description", isMandatory: false },
-  xyArrRule("cols", "Cols", false),
-  xyArrRule("rows", "Rows", false),
-];
+export function buildRoomRules(
+  rooms: Room[] = [],
+  hotspots: Hotspot[] = [],
+): TableRule[] {
+  return [
+    idRule("ID", [
+      isValidPrimaryKey(() => rooms.map((r) => r.id)),
+      uppercase,
+      isValidMandatory,
+    ]),
+    {
+      name: "name",
+      label: "Name",
+      isMandatory: true,
+      onBlurs: [isValidMandatory],
+    },
+    {
+      name: "floor",
+      label: "Floor",
+      isMandatory: false,
+      onBlurs: [hasPosition],
+    },
+    {
+      name: "belongsTo",
+      label: "Belongs To",
+      isMandatory: false,
+      onBlurs: [
+        isValidForeignKey(() => hotspots.map((h) => h.id)),
+        hasBelongsTo,
+        hasBelongsHotpotName(() => hotspots),
+      ],
+    },
+    {
+      name: "gates",
+      label: "Gates",
+      type: "arr",
+      isMandatory: false,
+      onBlurs: [
+        isValidForeignKey(() => hotspots.map((h) => h.id)),
+        hasGates,
+      ],
+    },
+    {
+      name: "category",
+      label: "Category",
+      isMandatory: false,
+      values: CATEGORY_VALUES,
+      onBlurs: [hasCategory],
+    },
+    { name: "description", label: "Description", isMandatory: false },
+    xyArrRule("cols", "Cols", false, [hasPosition, isValidFixedArray(2)]),
+    xyArrRule("rows", "Rows", false, [hasPosition, isValidFixedArray(2)]),
+  ];
+}
 
-const edgeRules: TableRule[] = [
-  {
-    name: "first",
-    label: "First hotspot ID",
-  },
-  {
-    name: "second",
-    label: "Second hotspot ID",
-  },
-];
+export function buildEdgeRules(
+  _edges: Edge[] = [],
+  hotspots: Hotspot[] = [],
+): TableRule[] {
+  return [
+    {
+      name: "first",
+      label: "First hotspot ID",
+      isMandatory: true,
+      onBlurs: [
+        isValidMandatory,
+        isValidForeignKey(() => hotspots.map((h) => h.id)),
+      ],
+    },
+    {
+      name: "second",
+      label: "Second hotspot ID",
+      isMandatory: true,
+      onBlurs: [
+        isValidMandatory,
+        isValidForeignKey(() => hotspots.map((h) => h.id)),
+      ],
+    },
+  ];
+}
 
-const tourSceneRules: TableRule[] = [
-  { name: "id", label: "ID", editable: false },
-  { name: "name", label: "Name", isMandatory: true, editable: false },
-];
+export function buildTourSceneRules(tourScenes: TourScene[] = []): TableRule[] {
+  return [
+    {
+      name: "id",
+      label: "ID",
+      editable: false,
+      onBlurs: [
+        isValidPrimaryKey(() => tourScenes.map((s) => s.id)),
+        uppercase,
+        isValidMandatory,
+      ],
+    },
+    {
+      name: "name",
+      label: "Name",
+      isMandatory: true,
+      editable: false,
+      onBlurs: [isValidMandatory],
+    },
+  ];
+}
 
-const tourspotRules: TableRule[] = [
-  idRule(),
-  { name: "sceneId", label: "Scene ID", isMandatory: true },
-  // xyzArrRule("dataPosition", "Position"),
-  // xyzArrRule("dataNormal", "Normal"),
-];
+export function buildTourspotRules(
+  tourspots: Tourspot[] = [],
+  tourScenes: TourScene[] = [],
+): TableRule[] {
+  return [
+    idRule("ID", [
+      isValidPrimaryKey(() => tourspots.map((t) => t.id)),
+      uppercase,
+      isValidMandatory,
+    ]),
+    {
+      name: "sceneId",
+      label: "Scene ID",
+      isMandatory: true,
+      onBlurs: [
+        isValidMandatory,
+        isValidForeignKey(() => tourScenes.map((s) => s.id)),
+      ],
+    },
+    // xyzArrRule("dataPosition", "Position"),
+    // xyzArrRule("dataNormal", "Normal"),
+  ];
+}
 
-const transportRules: TableRule[] = [
-  { name: "spot", label: "Hotspot ID", values: ["cA", "cB"] },
-  { name: "name", label: "Station name" },
-  { name: "type", label: "Type", values: ["bus", "metro"] },
-  { name: "providers", label: "Provider URLs", type: "arr" },
-];
+export function buildTransportRules(_transport: Transport[] = []): TableRule[] {
+  return [
+    {
+      name: "spot",
+      label: "Hotspot ID",
+      values: ["cA", "cB"],
+      isMandatory: true,
+      onBlurs: [isValidMandatory, isValidForeignKey(["cA", "cB"])],
+    },
+    {
+      name: "name",
+      label: "Station name",
+      isMandatory: true,
+      onBlurs: [isValidMandatory],
+    },
+    {
+      name: "type",
+      label: "Type",
+      values: ["bus", "metro"],
+      isMandatory: true,
+      onBlurs: [isValidMandatory],
+    },
+    {
+      name: "providers",
+      label: "Provider URLs",
+      type: "arr",
+      isMandatory: false,
+    },
+  ];
+}
+
+const hotspotRules: TableRule[] = buildHotspotRules([]);
+const roomRules: TableRule[] = buildRoomRules([], []);
+const edgeRules: TableRule[] = buildEdgeRules([], []);
+const tourSceneRules: TableRule[] = buildTourSceneRules([]);
+const tourspotRules: TableRule[] = buildTourspotRules([], []);
+const transportRules: TableRule[] = buildTransportRules([]);
 
 const ROW_ID_KEYS: Record<DataId, string> = {
   hotspots: "id",
@@ -340,16 +476,54 @@ export function DataProvider({ children }: { children: ReactNode }) {
     markUnsaved,
   );
 
+  const hotspotRules = useMemo(
+    () => buildHotspotRules(hotspots.data),
+    [hotspots.data],
+  );
+  const roomRules = useMemo(
+    () => buildRoomRules(rooms.data, hotspots.data),
+    [rooms.data, hotspots.data],
+  );
+  const edgeRules = useMemo(
+    () => buildEdgeRules(edges.data, hotspots.data),
+    [edges.data, hotspots.data],
+  );
+  const tourSceneRules = useMemo(
+    () => buildTourSceneRules(tourScenes.data),
+    [tourScenes.data],
+  );
+  const tourspotRules = useMemo(
+    () => buildTourspotRules(tourspots.data, tourScenes.data),
+    [tourspots.data, tourScenes.data],
+  );
+  const transportRules = useMemo(
+    () => buildTransportRules(transport.data),
+    [transport.data],
+  );
+
   const slices = useMemo(
     () => ({
+      hotspots: { ...hotspots, tableRules: hotspotRules },
+      rooms: { ...rooms, tableRules: roomRules },
+      edges: { ...edges, tableRules: edgeRules },
+      tourScenes: { ...tourScenes, tableRules: tourSceneRules },
+      tourspots: { ...tourspots, tableRules: tourspotRules },
+      transport: { ...transport, tableRules: transportRules },
+    }),
+    [
       hotspots,
       rooms,
       edges,
       tourScenes,
       tourspots,
       transport,
-    }),
-    [hotspots, rooms, edges, tourScenes, tourspots, transport],
+      hotspotRules,
+      roomRules,
+      edgeRules,
+      tourSceneRules,
+      tourspotRules,
+      transportRules,
+    ],
   );
 
   const saveSlice = useCallback(

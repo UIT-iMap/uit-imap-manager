@@ -3,12 +3,8 @@ import Dialog from "./Dialog";
 import FieldEditor from "./FieldEditor";
 import Button from "./Button";
 import { useData } from "../../contexts/dataContext";
-import type { DataId } from "../../lib/types";
-import {
-  isValidMandatory,
-  isUniqueValue,
-  isValidFixedArray,
-} from "../../lib/utils/validator";
+import { type DataId, ON_BLUR_STATUS } from "../../lib/types";
+import { isPopulated, isFixedArray } from "../../lib/utils/onBlurs";
 
 interface EditRowDialogProps {
   dataId: DataId;
@@ -31,7 +27,9 @@ export default function EditRowDialog({
   const targetRow = rowIdx !== null && slice?.data ? slice.data[rowIdx] : null;
 
   const [row, setRow] = useState<Record<string, any>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldFeedbacks, setFieldFeedbacks] = useState<
+    Record<string, { status: number; message: string }>
+  >({});
   const isSubmittedRef = useRef(false);
 
   useEffect(() => {
@@ -39,7 +37,7 @@ export default function EditRowDialog({
       isSubmittedRef.current = false;
       if (targetRow) {
         setRow({ ...targetRow });
-        setErrors({});
+        setFieldFeedbacks({});
       }
     }
   }, [isOpen, targetRow]);
@@ -59,39 +57,78 @@ export default function EditRowDialog({
     onClose();
   };
 
-  const handleOk = (close: () => void) => {
-    const newErrors: Record<string, string> = {};
-    for (const rule of visibleRules) {
-      const val = row[rule.name];
-      if (rule.isMandatory !== false && !isValidMandatory(val)) {
-        newErrors[rule.name] = `"${rule.label ?? rule.name}" is required.`;
-        continue;
-      }
-      if (rule.type === "arr" && rule.fixedSize) {
-        const isEmpty =
-          val === undefined ||
-          val === null ||
-          (Array.isArray(val) && val.length === 0) ||
-          (Array.isArray(val) && val.every((v) => v === "" || v === null || v === undefined));
+  const validateField = (
+    name: string,
+    currentRowState: Record<string, any>,
+  ): { status: number; message: string } => {
+    const rule = visibleRules.find((r) => r.name === name);
+    if (!rule) return { status: ON_BLUR_STATUS.SUCCESS, message: "" };
 
-        if (rule.isMandatory === false && isEmpty) {
-          // Allowed to be empty when non-mandatory
-        } else if (!isValidFixedArray(val, rule.fixedSize)) {
-          newErrors[rule.name] =
-            `"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`;
+    const targetRowObj: Record<string, any> = {
+      ...currentRowState,
+      _originalId: targetRow ? (targetRow as any)[slice.rowIdKey] : undefined,
+    };
+
+    let highestStatus: number = ON_BLUR_STATUS.SUCCESS;
+    let message = "";
+
+    if (rule.onBlurs && rule.onBlurs.length > 0) {
+      for (const fn of rule.onBlurs) {
+        const res = fn(targetRowObj, [name]);
+        if (res.status === ON_BLUR_STATUS.FAIL) {
+          highestStatus = ON_BLUR_STATUS.FAIL;
+          message = res.message;
+          break;
+        }
+        if (
+          res.status === ON_BLUR_STATUS.WARNING &&
+          highestStatus !== ON_BLUR_STATUS.FAIL
+        ) {
+          highestStatus = ON_BLUR_STATUS.WARNING;
+          message = res.message;
         }
       }
-      if (rule.name === slice.rowIdKey) {
-        const existing = slice.data
-          .filter((_, idx) => idx !== rowIdx)
-          .map((r) => (r as any)[slice.rowIdKey]);
-        if (!isUniqueValue(val, existing)) {
-          newErrors[rule.name] = `"${val}" already exists. Must be unique.`;
+      if (targetRowObj[name] !== currentRowState[name]) {
+        setRow((prev) => ({ ...prev, [name]: targetRowObj[name] }));
+      }
+    } else {
+      const val = currentRowState[name];
+      if (rule.isMandatory !== false && !isPopulated(val)) {
+        highestStatus = ON_BLUR_STATUS.FAIL;
+        message = `"${rule.label ?? rule.name}" is required.`;
+      } else if (rule.type === "arr" && rule.fixedSize) {
+        const isEmpty = !isPopulated(val);
+        if (rule.isMandatory === false && isEmpty) {
+          // Allowed empty
+        } else if (!isFixedArray(val, rule.fixedSize)) {
+          highestStatus = ON_BLUR_STATUS.FAIL;
+          message = `"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`;
         }
       }
     }
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+
+    const result = { status: highestStatus, message };
+    setFieldFeedbacks((prev) => ({
+      ...prev,
+      [name]: result,
+    }));
+    return result;
+  };
+
+  const handleOk = (close: () => void) => {
+    let hasFail = false;
+    const newFeedbacks: Record<string, { status: number; message: string }> = {};
+
+    for (const rule of visibleRules) {
+      const res = validateField(rule.name, row);
+      newFeedbacks[rule.name] = res;
+      if (res.status === ON_BLUR_STATUS.FAIL) {
+        hasFail = true;
+      }
+    }
+
+    setFieldFeedbacks(newFeedbacks);
+    if (hasFail) {
       return;
     }
 
@@ -118,26 +155,36 @@ export default function EditRowDialog({
     >
       {(close) => (
         <div className="space-y-4">
-          {visibleRules.map((rule) => (
-            <div key={rule.name}>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
-                {rule.label ?? rule.name}
-                {rule.isMandatory !== false && (
-                  <span className="ml-0.5 text-rose-500">*</span>
+          {visibleRules.map((rule) => {
+            const feedback = fieldFeedbacks[rule.name];
+            return (
+              <div key={rule.name}>
+                <label className="mb-1 block text-xs font-medium text-slate-500">
+                  {rule.label ?? rule.name}
+                  {rule.isMandatory !== false && (
+                    <span className="ml-0.5 text-rose-500">*</span>
+                  )}
+                </label>
+                <FieldEditor
+                  rule={rule}
+                  value={row[rule.name]}
+                  onChange={(v) => setField(rule.name, v)}
+                  onBlur={() => validateField(rule.name, row)}
+                />
+                {feedback && feedback.message && (
+                  <p
+                    className={`mt-1.5 text-xs ${
+                      feedback.status === ON_BLUR_STATUS.FAIL
+                        ? "text-rose-500"
+                        : "text-amber-500"
+                    }`}
+                  >
+                    {feedback.message}
+                  </p>
                 )}
-              </label>
-              <FieldEditor
-                rule={rule}
-                value={row[rule.name]}
-                onChange={(v) => setField(rule.name, v)}
-              />
-              {errors[rule.name] && (
-                <p className="mt-1.5 text-xs text-rose-500">
-                  {errors[rule.name]}
-                </p>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={handleDismiss}>
               Cancel

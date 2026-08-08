@@ -1,9 +1,10 @@
-import type { TableRule } from "../types";
+import type { OnBlurFn, TableRule } from "../types";
 
 export function xyArrRule(
   name: string,
   label: string,
   mandatory = true,
+  onBlurs?: OnBlurFn[],
 ): TableRule {
   return {
     name,
@@ -13,6 +14,7 @@ export function xyArrRule(
     isMandatory: mandatory,
     allowSort: false,
     editable: true,
+    onBlurs,
   };
 }
 
@@ -21,6 +23,7 @@ export function xyzArrRule(
   name: string,
   label: string,
   mandatory = true,
+  onBlurs?: OnBlurFn[],
 ): TableRule {
   return {
     name,
@@ -30,13 +33,15 @@ export function xyzArrRule(
     isMandatory: mandatory,
     allowSort: false,
     editable: true,
+    onBlurs,
   };
 }
 
-export const idRule = (label = "ID"): TableRule => ({
+export const idRule = (label = "ID", onBlurs?: OnBlurFn[]): TableRule => ({
   name: "id",
   label,
   isMandatory: true,
   allowSort: true,
   editable: false,
+  onBlurs,
 });

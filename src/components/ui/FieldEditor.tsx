@@ -5,9 +5,15 @@ interface FieldEditorProps {
   rule: TableRule;
   value: any;
   onChange: (value: any) => void;
+  onBlur?: () => void;
 }
 
-export default function FieldEditor({ rule, value, onChange }: FieldEditorProps) {
+export default function FieldEditor({
+  rule,
+  value,
+  onChange,
+  onBlur,
+}: FieldEditorProps) {
   const type = rule.type ?? "text";
 
   if (rule.values && rule.values.length > 0) {
@@ -15,6 +21,7 @@ export default function FieldEditor({ rule, value, onChange }: FieldEditorProps)
       <select
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-400"
       >
         <option value="">-- select --</option>
@@ -38,7 +45,9 @@ export default function FieldEditor({ rule, value, onChange }: FieldEditorProps)
       onChange(next);
     };
     const removeItem = (idx: number) => {
-      onChange(arr.filter((_, i) => i !== idx));
+      const next = arr.filter((_, i) => i !== idx);
+      onChange(next);
+      onBlur?.();
     };
     const addItem = () => onChange([...arr, ""]);
 
@@ -52,6 +61,7 @@ export default function FieldEditor({ rule, value, onChange }: FieldEditorProps)
             <input
               value={item ?? ""}
               onChange={(e) => updateItem(idx, e.target.value)}
+              onBlur={onBlur}
               className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-sky-400"
               placeholder={`Item ${idx + 1}`}
             />
@@ -84,6 +94,7 @@ export default function FieldEditor({ rule, value, onChange }: FieldEditorProps)
     <textarea
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       rows={3}
       className="w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-400"
     />

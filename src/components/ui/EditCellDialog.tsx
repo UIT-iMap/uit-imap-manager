@@ -3,8 +3,8 @@ import Dialog from "./Dialog";
 import FieldEditor from "./FieldEditor";
 import Button from "./Button";
 import { useData } from "../../contexts/dataContext";
-import type { DataId } from "../../lib/types";
-import { isValidMandatory, isUniqueValue, isValidFixedArray } from "../../lib/utils/validator";
+import { type DataId, ON_BLUR_STATUS } from "../../lib/types";
+import { isPopulated, isFixedArray } from "../../lib/utils/onBlurs";
 
 interface EditCellDialogProps {
   dataId: DataId;
@@ -24,8 +24,10 @@ export default function EditCellDialog({
   const rule = slice.tableRules.find((r) => r.name === attribute);
   const row = rowIdx !== null ? slice.data[rowIdx] : null;
   const [value, setValue] = useState<any>(row ? (row as any)[attribute ?? ""] : "");
-  const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    status: number;
+    message: string;
+  } | null>(null);
   const isSubmittedRef = useRef(false);
 
   const isOpen = attribute !== null && rowIdx !== null;
@@ -38,8 +40,7 @@ export default function EditCellDialog({
 
   useMemo(() => {
     if (row && attribute) setValue((row as any)[attribute]);
-    setError(null);
-    setTouched(false);
+    setFeedback(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attribute, rowIdx]);
 
@@ -52,37 +53,67 @@ export default function EditCellDialog({
     onClose();
   };
 
+  const runValidation = (val: any): { status: number; message: string } => {
+    if (!rule || !attribute || !row) {
+      return { status: ON_BLUR_STATUS.SUCCESS, message: "" };
+    }
+
+    const currentRow = {
+      ...row,
+      [attribute]: val,
+      _originalId: (row as any)[slice.rowIdKey],
+    };
+
+    let highestStatus: number = ON_BLUR_STATUS.SUCCESS;
+    let message = "";
+
+    if (rule.onBlurs && rule.onBlurs.length > 0) {
+      for (const fn of rule.onBlurs) {
+        const res = fn(currentRow, [attribute]);
+        if (res.status === ON_BLUR_STATUS.FAIL) {
+          highestStatus = ON_BLUR_STATUS.FAIL;
+          message = res.message;
+          break;
+        }
+        if (
+          res.status === ON_BLUR_STATUS.WARNING &&
+          highestStatus !== ON_BLUR_STATUS.FAIL
+        ) {
+          highestStatus = ON_BLUR_STATUS.WARNING;
+          message = res.message;
+        }
+      }
+      if (currentRow[attribute] !== val) {
+        setValue(currentRow[attribute]);
+      }
+    } else {
+      if (rule.isMandatory !== false && !isPopulated(val)) {
+        highestStatus = ON_BLUR_STATUS.FAIL;
+        message = `"${rule.label ?? rule.name}" is required.`;
+      } else if (rule.type === "arr" && rule.fixedSize) {
+        const isEmpty = !isPopulated(val);
+        if (rule.isMandatory === false && isEmpty) {
+          // Allowed empty
+        } else if (!isFixedArray(val, rule.fixedSize)) {
+          highestStatus = ON_BLUR_STATUS.FAIL;
+          message = `"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`;
+        }
+      }
+    }
+
+    const result = { status: highestStatus, message };
+    setFeedback(
+      highestStatus === ON_BLUR_STATUS.SUCCESS ? null : result,
+    );
+    return result;
+  };
+
   const handleOk = (close: () => void) => {
-    if (rule.isMandatory !== false && !isValidMandatory(value)) {
-      setError(`"${rule.label ?? rule.name}" is required.`);
-      setTouched(true);
+    const res = runValidation(value);
+    if (res.status === ON_BLUR_STATUS.FAIL) {
       return;
     }
-    if (rule.type === "arr" && rule.fixedSize) {
-      const isEmpty =
-        value === undefined ||
-        value === null ||
-        (Array.isArray(value) && value.length === 0) ||
-        (Array.isArray(value) && value.every((v) => v === "" || v === null || v === undefined));
 
-      if (rule.isMandatory === false && isEmpty) {
-        // Allowed to be empty when non-mandatory
-      } else if (!isValidFixedArray(value, rule.fixedSize)) {
-        setError(`"${rule.label ?? rule.name}" must have exactly ${rule.fixedSize} values.`);
-        setTouched(true);
-        return;
-      }
-    }
-    if (rule.name === slice.rowIdKey) {
-      const existing = slice.data
-        .filter((_, i) => i !== rowIdx)
-        .map((r) => (r as any)[slice.rowIdKey]);
-      if (!isUniqueValue(value, existing)) {
-        setError(`"${value}" already exists. ${rule.label ?? rule.name} must be unique.`);
-        setTouched(true);
-        return;
-      }
-    }
     isSubmittedRef.current = true;
     slice.editRow?.(attribute!, rowIdx!, value);
     close();
@@ -104,9 +135,22 @@ export default function EditCellDialog({
                 <span className="ml-0.5 text-rose-500">*</span>
               )}
             </label>
-            <FieldEditor rule={rule} value={value} onChange={setValue} />
-            {touched && error && (
-              <p className="mt-1.5 text-xs text-rose-500">{error}</p>
+            <FieldEditor
+              rule={rule}
+              value={value}
+              onChange={setValue}
+              onBlur={() => runValidation(value)}
+            />
+            {feedback && feedback.message && (
+              <p
+                className={`mt-1.5 text-xs ${
+                  feedback.status === ON_BLUR_STATUS.FAIL
+                    ? "text-rose-500"
+                    : "text-amber-500"
+                }`}
+              >
+                {feedback.message}
+              </p>
             )}
           </div>
           <div className="flex justify-end gap-2 pt-1">

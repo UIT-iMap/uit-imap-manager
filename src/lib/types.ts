@@ -173,6 +173,21 @@ export type AnyRow = Hotspot | Room | Edge | TourScene | Tourspot | Transport;
 
 // ==================== Table rule configuration ====================
 
+export const ON_BLUR_STATUS = {
+  FAIL: 1,
+  SUCCESS: 2,
+  WARNING: 3,
+} as const;
+
+export type OnBlurStatus = (typeof ON_BLUR_STATUS)[keyof typeof ON_BLUR_STATUS];
+
+export interface OnBlurResult {
+  status: number;
+  message: string;
+}
+
+export type OnBlurFn = (row: any, attributes: string[]) => OnBlurResult;
+
 export type FieldType = "text" | "arr";
 
 export interface TableRule {
@@ -185,6 +200,7 @@ export interface TableRule {
   type?: FieldType;
   fixedSize?: number; // fixed number of elements, if type is 'arr'
   values?: string[]; // list of allowed data values
+  onBlurs?: OnBlurFn[];
 }
 
 // ==================== Data context slice ====================
