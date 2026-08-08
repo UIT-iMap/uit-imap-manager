@@ -114,13 +114,17 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     const effectiveShowHotspots = showHotspots || isPickingEdge;
     const effectiveShowEdges = showEdges || isPickingEdge;
 
-    // Automatically enable showHotspots and showEdges when edge picking mode is activated
+    // Automatically enable showHotspots and showEdges when picking mode is activated
     useEffect(() => {
       if (isPickingEdge) {
         setShowHotspots(true);
         setShowEdges(true);
+      } else if (pickMode === "hotspot") {
+        setShowHotspots(true);
+      } else if (pickMode === "tourspot") {
+        setShowTourspots(true);
       }
-    }, [isPickingEdge]);
+    }, [isPickingEdge, pickMode, setShowTourspots]);
 
     const handleEdgeHotspotClick = useCallback(
       (clickedId: string) => {
@@ -400,29 +404,29 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     );
 
     useEffect(() => {
-      const mv = mvRef.current;
-      if (!mv || (!movingItem && !isPickingPosition)) return;
-
       const onKeyDown = (e: KeyboardEvent) => {
         if (e.key === "Escape") {
-          if (movingItem) {
-            setMovingItem(null);
-            setTempPosNormal(null);
-          } else if (isPickingPosition) {
+          if (movingItem || pickMode) {
             cancelPicking();
-            setTempPosNormal(null);
           }
         }
       };
 
-      mv.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("keydown", onKeyDown);
-
       return () => {
-        mv.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("keydown", onKeyDown);
       };
-    }, [movingItem, isPickingPosition, handleMouseMove, cancelPicking]);
+    }, [movingItem, pickMode, cancelPicking]);
+
+    useEffect(() => {
+      const mv = mvRef.current;
+      if (!mv || (!movingItem && !isPickingPosition)) return;
+
+      mv.addEventListener("mousemove", handleMouseMove);
+      return () => {
+        mv.removeEventListener("mousemove", handleMouseMove);
+      };
+    }, [movingItem, isPickingPosition, handleMouseMove]);
 
     useEffect(() => {
       if (movingItem && effectiveShowEdges) {
@@ -540,10 +544,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               anywhere on the model to update position.
             </span>
             <button
-              onClick={() => {
-                setMovingItem(null);
-                setTempPosNormal(null);
-              }}
+              onClick={cancelPicking}
               className="ml-1 rounded bg-black/20 px-1.5 py-0.5 text-[10px] hover:bg-black/40"
             >
               Cancel (Esc)
@@ -551,19 +552,35 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           </div>
         )}
         {isPickingPosition && !movingItem && (
-          <div className="absolute top-3 left-3 z-10 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md">
-            Click anywhere on the model to place the {pickMode}.
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md backdrop-blur-sm">
+            <span>
+              Click anywhere on the model to place the {pickMode}.
+            </span>
+            <button
+              onClick={cancelPicking}
+              className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] hover:bg-white/30"
+            >
+              Cancel (Esc)
+            </button>
           </div>
         )}
         {isPickingEdge && !movingItem && (
-          <div className="absolute top-3 left-3 z-10 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md">
-            {pickMode === "remove_edge"
-              ? edgeFirstId
-                ? "Click the second hotspot to remove the edge."
-                : "Click the first hotspot to select edge to remove."
-              : edgeFirstId
-                ? "Click the second hotspot to finish the edge."
-                : "Click the first hotspot to start the edge."}
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md backdrop-blur-sm">
+            <span>
+              {pickMode === "remove_edge"
+                ? edgeFirstId
+                  ? "Click the second hotspot to remove the edge."
+                  : "Click the first hotspot to select edge to remove."
+                : edgeFirstId
+                  ? "Click the second hotspot to finish the edge."
+                  : "Click the first hotspot to start the edge."}
+            </span>
+            <button
+              onClick={cancelPicking}
+              className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] hover:bg-white/30"
+            >
+              Cancel (Esc)
+            </button>
           </div>
         )}
 

@@ -37,6 +37,7 @@ export default function Topbar() {
     pickMode,
     edgeFirstId,
     pendingRow,
+    movingItem,
     startPicking,
     cancelPicking,
     clearPendingRow,
@@ -389,6 +390,26 @@ export default function Topbar() {
     );
   }
 
+  useEffect(() => {
+    if (!isModel) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (pickMode || movingItem || tourspotDropdownOpen) {
+          cancelPicking();
+          setTourspotDropdownOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModel, pickMode, movingItem, tourspotDropdownOpen, cancelPicking]);
+
+  const isAnyActionActive = Boolean(
+    pickMode || movingItem || tourspotDropdownOpen,
+  );
+
   if (isModel) {
     return (
       <div className="mb-3 flex flex-wrap items-center justify-end gap-2 px-2 pt-2">
@@ -397,12 +418,17 @@ export default function Topbar() {
             variant={pickMode === "hotspot" ? "primary" : "secondary"}
             icon={<Plus size={14} />}
             onClick={() => startPicking("hotspot")}
+            disabled={isAnyActionActive}
           >
-            {pickMode === "hotspot" ? "Click on the model…" : "Add Hotspot"}
+            Add Hotspot
           </Button>
           <div className="relative tourspot-dropdown-container">
             <Button
-              variant={pickMode === "tourspot" ? "primary" : "secondary"}
+              variant={
+                pickMode === "tourspot" || tourspotDropdownOpen
+                  ? "primary"
+                  : "secondary"
+              }
               icon={<Plus size={14} />}
               onClick={() => {
                 if (pickMode === "tourspot") {
@@ -411,8 +437,9 @@ export default function Topbar() {
                   setTourspotDropdownOpen((prev) => !prev);
                 }
               }}
+              disabled={Boolean(pickMode || movingItem)}
             >
-              {pickMode === "tourspot" ? "Click on the model…" : "Add Tourspot"}
+              Add Tourspot
             </Button>
             {tourspotDropdownOpen && (
               <div className="absolute left-0 mt-1.5 z-50 w-56 rounded-lg bg-white shadow-xl ring-1 ring-black/5 focus:outline-none max-h-60 overflow-y-auto border border-slate-200 py-1 transition-all">
@@ -457,7 +484,7 @@ export default function Topbar() {
             variant={pickMode === "edge" ? "primary" : "secondary"}
             icon={<Plus size={14} />}
             onClick={() => startPicking("edge")}
-            disabled={pickMode === "edge"}
+            disabled={isAnyActionActive}
           >
             Add Edge
           </Button>
@@ -465,14 +492,17 @@ export default function Topbar() {
             variant={pickMode === "remove_edge" ? "primary" : "secondary"}
             icon={<Trash2 size={14} />}
             onClick={() => startPicking("remove_edge")}
-            disabled={pickMode === "remove_edge"}
+            disabled={isAnyActionActive}
           >
             Remove Edge
           </Button>
-          {pickMode && (
+          {isAnyActionActive && (
             <Button
               variant="ghost"
-              onClick={cancelPicking}
+              onClick={() => {
+                cancelPicking();
+                setTourspotDropdownOpen(false);
+              }}
               icon={<X size={14} />}
               className="text-red-400!"
             >

@@ -50,7 +50,7 @@ const roomRules: TableRule[] = [
   {
     name: "category",
     label: "Category",
-    isMandatory: true,
+    isMandatory: false,
     values: CATEGORY_VALUES,
   },
   { name: "description", label: "Description", isMandatory: false },
@@ -458,4 +458,3 @@ export function useData() {
   if (!ctx) throw new Error("useData must be used within DataProvider");
   return ctx;
 }
-

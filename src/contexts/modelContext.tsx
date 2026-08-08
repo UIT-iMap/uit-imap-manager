@@ -89,6 +89,8 @@ export function ModelProvider({ children }: { children: ReactNode }) {
     setPickMode(null);
     setEdgeFirstId(null);
     setTourspotSceneId(null);
+    setMovingItem(null);
+    setTempPosNormal(null);
   }, []);
 
   const submitHotspotPick = useCallback(
