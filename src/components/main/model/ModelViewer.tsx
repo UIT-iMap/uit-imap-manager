@@ -131,7 +131,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       } else if (pickMode === "tourspot") {
         setShowTourspots(true);
       }
-    }, [isPickingEdge, pickMode, setShowHotspots, setShowEdges, setShowTourspots]);
+    }, [
+      isPickingEdge,
+      pickMode,
+      setShowHotspots,
+      setShowEdges,
+      setShowTourspots,
+    ]);
+
+    const cameraViewRef = useRef(cameraView);
+    cameraViewRef.current = cameraView;
 
     // Restore camera view on mount/load and save camera view on unmount
     useEffect(() => {
@@ -139,9 +148,10 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       if (!mv) return;
 
       const restoreView = () => {
-        if (cameraView) {
-          mv.cameraOrbit = `${cameraView.orbit.theta}rad ${cameraView.orbit.phi}rad ${cameraView.orbit.radius}m`;
-          mv.cameraTarget = `${cameraView.target.x}m ${cameraView.target.y}m ${cameraView.target.z}m`;
+        const savedView = cameraViewRef.current;
+        if (savedView) {
+          mv.cameraOrbit = `${savedView.orbit.theta}rad ${savedView.orbit.phi}rad ${savedView.orbit.radius}m`;
+          mv.cameraTarget = `${savedView.target.x}m ${savedView.target.y}m ${savedView.target.z}m`;
           try {
             mv.jumpCameraToGoal?.();
           } catch {
@@ -170,7 +180,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           console.error("Failed to save camera view:", err);
         }
       };
-    }, [cameraView, setCameraView]);
+    }, [setCameraView]);
 
     const handleEdgeHotspotClick = useCallback(
       (clickedId: string) => {
@@ -425,6 +435,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         editHotspotRowFields,
         tourspots,
         editTourspotRowFields,
+        setMovingItem,
+        setTempPosNormal,
       ],
     );
 
@@ -447,7 +459,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           });
         }
       },
-      [movingItem, isPickingPosition],
+      [movingItem, isPickingPosition, setTempPosNormal],
     );
 
     useEffect(() => {
@@ -533,6 +545,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         movingItem,
         placeMovingItem,
         pickMode,
+        hotspots,
         submitHotspotPick,
         submitTourspotPick,
         tourspotSceneId,
@@ -600,9 +613,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         )}
         {isPickingPosition && !movingItem && (
           <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-md backdrop-blur-sm">
-            <span>
-              Click anywhere on the model to place the {pickMode}.
-            </span>
+            <span>Click anywhere on the model to place the {pickMode}.</span>
             <button
               onClick={cancelPicking}
               className="ml-1 rounded bg-white/20 px-1.5 py-0.5 text-[10px] hover:bg-white/30"
@@ -635,6 +646,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           ref={mvRef}
           src={`${API_BASE_URL.replace(/\/$/, "")}/map.glb`}
           camera-controls
+          min-camera-orbit="auto auto 7m"
           tone-mapping="neutral"
           shadow-intensity="0"
           exposure="1"

@@ -54,7 +54,7 @@ function Gate() {
     );
   }
 
-  // if (!isAuthed) return <Login />;
+  if (!isAuthed) return <Login />;
   return (
     <DataProvider>
       <TabProvider>
