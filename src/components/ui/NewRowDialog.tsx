@@ -4,7 +4,7 @@ import FieldEditor from "./FieldEditor";
 import Button from "./Button";
 import { useData } from "../../contexts/dataContext";
 import { type DataId, ON_BLUR_STATUS } from "../../lib/types";
-import { isPopulated, isFixedArray } from "../../lib/utils/onBlurs";
+import { isPopulated, isFixedArray, isArrayEmpty } from "../../lib/utils/onBlurs";
 import { genId } from "../../lib/utils/genId";
 
 interface NewRowDialogProps {
@@ -63,7 +63,7 @@ export default function NewRowDialog({
 
   const handleDismiss = () => {
     if (!isSubmittedRef.current) {
-      alert("Changes may not be saved");
+      if (!confirm("Changes may not be saved")) return;
     }
     onClose();
   };
@@ -105,7 +105,7 @@ export default function NewRowDialog({
         highestStatus = ON_BLUR_STATUS.FAIL;
         message = `"${rule.label ?? rule.name}" is required.`;
       } else if (rule.type === "arr" && rule.fixedSize) {
-        const isEmpty = !isPopulated(val);
+        const isEmpty = isArrayEmpty(val);
         if (rule.isMandatory === false && isEmpty) {
           // Allowed empty
         } else if (!isFixedArray(val, rule.fixedSize)) {

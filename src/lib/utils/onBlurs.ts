@@ -286,8 +286,18 @@ export function isValidMandatory(
 }
 
 /**
+ * Checks whether an array field is empty (e.g. undefined, null, [], or all empty strings).
+ */
+export function isArrayEmpty(value: any): boolean {
+  if (value === undefined || value === null) return true;
+  if (!Array.isArray(value)) return false;
+  if (value.length === 0) return true;
+  return value.every((v) => v === "" || v === null || v === undefined);
+}
+
+/**
  * isValidFixedArray: Checks if a fixed-size array field has exactly `size` populated entries.
- * Returns status 1 (fail) if invalid.
+ * Returns status 1 (fail) if invalid. Allows empty values when optional.
  */
 export function isValidFixedArray(
   arg1: any,
@@ -300,6 +310,8 @@ export function isValidFixedArray(
     return (row: any, attributes: string[]): OnBlurResult => {
       for (const attr of attributes) {
         const val = row ? row[attr] : undefined;
+        // Optional/empty array is allowed:
+        if (isArrayEmpty(val)) continue;
         if (!isFixedArray(val, size)) {
           return {
             status: ON_BLUR_STATUS.FAIL,
@@ -318,6 +330,7 @@ export function isValidFixedArray(
     const attributes = arg3;
     for (const attr of attributes) {
       const val = row ? row[attr] : undefined;
+      if (isArrayEmpty(val)) continue;
       if (!isFixedArray(val, size)) {
         return {
           status: ON_BLUR_STATUS.FAIL,

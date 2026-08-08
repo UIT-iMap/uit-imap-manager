@@ -23,7 +23,9 @@ export default function EditCellDialog({
   const slice = data[dataId];
   const rule = slice.tableRules.find((r) => r.name === attribute);
   const row = rowIdx !== null ? slice.data[rowIdx] : null;
-  const [value, setValue] = useState<any>(row ? (row as any)[attribute ?? ""] : "");
+  const [value, setValue] = useState<any>(
+    row ? (row as any)[attribute ?? ""] : "",
+  );
   const [feedback, setFeedback] = useState<{
     status: number;
     message: string;
@@ -47,9 +49,9 @@ export default function EditCellDialog({
   if (!isOpen || !rule || !row) return null;
 
   const handleDismiss = () => {
-    if (!isSubmittedRef.current) {
-      alert("Changes may not be saved");
-    }
+    // if (!isSubmittedRef.current) {
+    //   if (!confirm("Changes may not be saved")) return;
+    // }
     onClose();
   };
 
@@ -102,9 +104,7 @@ export default function EditCellDialog({
     }
 
     const result = { status: highestStatus, message };
-    setFeedback(
-      highestStatus === ON_BLUR_STATUS.SUCCESS ? null : result,
-    );
+    setFeedback(highestStatus === ON_BLUR_STATUS.SUCCESS ? null : result);
     return result;
   };
 
