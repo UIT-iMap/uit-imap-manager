@@ -220,7 +220,11 @@ async function request<T>(
   } catch (err) {
     if (err instanceof HttpError) {
       const cleanRoute = route.startsWith('/') ? route : `/${route}`;
-      const isAuthEndpoint = cleanRoute.includes('/auth/login') || cleanRoute.includes('/auth/refresh') || cleanRoute === '/auth';
+      const isAuthEndpoint =
+        cleanRoute.includes('/auth/login') ||
+        cleanRoute.includes('/auth/refresh') ||
+        cleanRoute.includes('/auth/logout') ||
+        cleanRoute === '/auth';
 
       if (err.status === 401 && !_isRetry && !isAuthEndpoint) {
         if (isRefreshing) {
@@ -228,7 +232,10 @@ async function request<T>(
             failedQueue.push({ resolve, reject });
           })
             .then(() => {
-              return request<T>(method, route, { ...options, _isRetry: true });
+              const retryHeaders = { ...(options.headers || {}) };
+              delete retryHeaders["Authorization"];
+              delete retryHeaders["authorization"];
+              return request<T>(method, route, { ...options, headers: retryHeaders, _isRetry: true });
             })
             .catch((qErr) => {
               throw qErr;
@@ -244,16 +251,20 @@ async function request<T>(
 
           if (refreshRes && refreshRes.accessToken) {
             setAccessToken(refreshRes.accessToken);
-            processQueue(null, refreshRes.accessToken);
             isRefreshing = false;
-            return await request<T>(method, route, { ...options, _isRetry: true });
+            processQueue(null, refreshRes.accessToken);
+            
+            const retryHeaders = { ...(options.headers || {}) };
+            delete retryHeaders["Authorization"];
+            delete retryHeaders["authorization"];
+            return await request<T>(method, route, { ...options, headers: retryHeaders, _isRetry: true });
           } else {
-            throw new Error("Failed to refresh token");
+            throw new Error("Failed to refresh token: missing accessToken in response");
           }
         } catch (refreshErr: any) {
           setAccessToken(null);
-          processQueue(refreshErr, null);
           isRefreshing = false;
+          processQueue(refreshErr, null);
           if (unauthCallback) unauthCallback();
           throw err;
         }
