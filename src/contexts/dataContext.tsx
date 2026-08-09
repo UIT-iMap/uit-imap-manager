@@ -58,6 +58,12 @@ export function buildHotspotRules(
       values: ["true", "false"],
     },
     {
+      name: "canBeSearch",
+      label: "Searchable",
+      isMandatory: false,
+      values: ["true", "false"],
+    },
+    {
       name: "gates",
       label: "Gates",
       type: "arr",
