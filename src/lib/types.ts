@@ -95,9 +95,10 @@ export const CATEGORY_VALUES: Category[] = Object.keys(
 export interface Hotspot {
   id: string;
   showInDefault?: boolean;
+  canBeSearch?: boolean;
   name?: string;
   description?: string;
-  representativeRoom?: string;
+  gates?: string[];
   dataPosition: [number, number, number];
   dataNormal: [number, number, number];
 }
